@@ -1,0 +1,58 @@
+[
+  {
+    "subject": "math",
+    "title": "Linear equations worksheet 4",
+    "description": "Complete questions 1-15 on solving linear equations with variables on both sides. Show all working steps.",
+    "assigned_date": "2026-07-30",
+    "due_date": "2026-08-06"
+  },
+  {
+    "subject": "math",
+    "title": "Pythagorean theorem practice",
+    "description": "Solve the 10 right-triangle problems handed out in class. Round answers to 2 decimal places.",
+    "assigned_date": "2026-08-03",
+    "due_date": "2026-08-10"
+  },
+  {
+    "subject": "physics",
+    "title": "Newton's laws lab write-up",
+    "description": "Write up the force/acceleration lab from Tuesday, including your data table and a conclusion paragraph.",
+    "assigned_date": "2026-08-01",
+    "due_date": "2026-08-07"
+  },
+  {
+    "subject": "physics",
+    "title": "Speed, velocity, acceleration problem set",
+    "description": "Textbook chapter 3, questions 4-20 (odd numbers only).",
+    "assigned_date": "2026-07-29",
+    "due_date": "2026-08-05"
+  },
+  {
+    "subject": "chemistry",
+    "title": "Balancing equations sheet",
+    "description": "Balance the 12 chemical equations on the handout and identify the reaction type for each.",
+    "assigned_date": "2026-08-02",
+    "due_date": "2026-08-09"
+  },
+  {
+    "subject": "chemistry",
+    "title": "Atomic structure diagram",
+    "description": "Draw and label Bohr model diagrams for the first 10 elements on the periodic table.",
+    "assigned_date": "2026-07-28",
+    "due_date": "2026-08-04"
+  },
+  {
+    "subject": "biology",
+    "title": "Cell structure labeling",
+    "description": "Label the plant and animal cell diagrams and describe the function of each organelle in one sentence.",
+    "assigned_date": "2026-08-01",
+    "due_date": "2026-08-08"
+  },
+  {
+    "subject": "biology",
+    "title": "Photosynthesis reading response",
+    "description": "Read chapter 6 section 2 and answer the 5 reflection questions at the end.",
+    "assigned_date": "2026-07-31",
+    "due_date": "2026-08-06"
+  }
+]

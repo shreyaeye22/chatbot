@@ -3,4 +3,17 @@ name = "chatbot"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "logfire>=4.39.0",
+    "pydantic-ai[huggingface]>=2.23.0",
+    "python-docx>=1.2.0",
+    "streamlit>=1.60.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

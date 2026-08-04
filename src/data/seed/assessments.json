@@ -1,0 +1,37 @@
+[
+  {
+    "subject": "math",
+    "title": "Linear equations quiz",
+    "description": "Short quiz covering solving and graphing linear equations. Calculators not allowed.",
+    "assessment_date": "2026-08-11",
+    "assessment_type": "quiz"
+  },
+  {
+    "subject": "math",
+    "title": "Unit 2 test: Algebra foundations",
+    "description": "Covers linear equations, inequalities, and the Pythagorean theorem. Bring a ruler and calculator.",
+    "assessment_date": "2026-08-18",
+    "assessment_type": "test"
+  },
+  {
+    "subject": "physics",
+    "title": "Forces and motion test",
+    "description": "Covers Newton's three laws, and speed/velocity/acceleration calculations.",
+    "assessment_date": "2026-08-13",
+    "assessment_type": "test"
+  },
+  {
+    "subject": "chemistry",
+    "title": "Atomic structure quiz",
+    "description": "Quiz on atomic structure, Bohr models, and the periodic table.",
+    "assessment_date": "2026-08-12",
+    "assessment_type": "quiz"
+  },
+  {
+    "subject": "biology",
+    "title": "Cells and photosynthesis test",
+    "description": "Covers cell structure, organelle functions, and the photosynthesis process.",
+    "assessment_date": "2026-08-15",
+    "assessment_type": "test"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "subject": "math",
+    "topic": "linear equations",
+    "content": "A linear equation is an equation where the variable appears only to the first power, e.g. 2x + 3 = 11. To solve one: (1) simplify both sides, (2) move variable terms to one side and constants to the other using inverse operations, (3) isolate the variable by dividing by its coefficient. Always do the same operation to both sides to keep the equation balanced.",
+    "source": "seed"
+  },
+  {
+    "subject": "math",
+    "topic": "pythagorean theorem",
+    "content": "For a right triangle with legs a and b and hypotenuse c: a^2 + b^2 = c^2. It only applies to right triangles. To find a missing side, substitute the two known values, isolate the unknown, then take the square root.",
+    "source": "seed"
+  },
+  {
+    "subject": "physics",
+    "topic": "newton's laws",
+    "content": "Newton's First Law: an object stays at rest or in uniform motion unless acted on by a net force. Second Law: F = m * a, force equals mass times acceleration. Third Law: for every action there is an equal and opposite reaction.",
+    "source": "seed"
+  },
+  {
+    "subject": "physics",
+    "topic": "speed velocity acceleration",
+    "content": "Speed is distance travelled over time (a scalar). Velocity is displacement over time, including direction (a vector). Acceleration is the rate of change of velocity over time: a = (v_final - v_initial) / t.",
+    "source": "seed"
+  },
+  {
+    "subject": "chemistry",
+    "topic": "atomic structure",
+    "content": "An atom has a nucleus containing protons (positive) and neutrons (neutral), surrounded by electrons (negative) in energy levels/shells. The number of protons is the atomic number and defines the element. Electron shells fill in order: 2, 8, 8 for the first three shells.",
+    "source": "seed"
+  },
+  {
+    "subject": "chemistry",
+    "topic": "balancing equations",
+    "content": "A balanced chemical equation has the same number of atoms of each element on both sides, per the law of conservation of mass. Balance by adjusting coefficients in front of formulas (never the subscripts within a formula), usually starting with the most complex molecule first.",
+    "source": "seed"
+  },
+  {
+    "subject": "biology",
+    "topic": "cell structure",
+    "content": "Both plant and animal cells have a nucleus (controls the cell), cytoplasm (where reactions happen), and cell membrane (controls what enters/exits). Plant cells additionally have a cell wall, chloroplasts (for photosynthesis), and a large central vacuole.",
+    "source": "seed"
+  },
+  {
+    "subject": "biology",
+    "topic": "photosynthesis",
+    "content": "Photosynthesis is the process plants use to convert light energy into chemical energy: carbon dioxide + water, using light energy in the chloroplast, produces glucose and oxygen. The word equation is: carbon dioxide + water --light--> glucose + oxygen.",
+    "source": "seed"
+  }
+]
