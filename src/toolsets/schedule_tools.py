@@ -18,7 +18,8 @@ def get_upcoming_deadlines(
 ) -> list[dict]:
     """List homework and assessments due in the next `days_ahead` days.
 
-    `subject` optionally filters to one of: math, physics, chemistry, biology.
+    `subject` optionally filters to one of the student's MYP4 subjects (e.g. math, biology,
+    geography, digital design).
     """
     conn = get_connection(ctx.deps.db_path)
     try:
@@ -30,7 +31,8 @@ def get_upcoming_deadlines(
 def get_next_deadline(ctx: RunContext[AgentDeps], subject: str | None = None) -> dict | None:
     """The single soonest upcoming homework or assessment item, or null if none is scheduled.
 
-    `subject` optionally filters to one of: math, physics, chemistry, biology.
+    `subject` optionally filters to one of the student's MYP4 subjects (e.g. math, biology,
+    geography, digital design).
     """
     conn = get_connection(ctx.deps.db_path)
     try:

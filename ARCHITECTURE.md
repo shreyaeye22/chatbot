@@ -49,35 +49,49 @@ agent tool call, for the same reliability reason.
 
 ## Model provider (and why it's swappable)
 
-The brief specifies Anthropic; the project currently has no Anthropic key, so `config/settings.py`
-builds the pydantic-ai `Model` from a `LLM_PROVIDER` setting:
+`config/settings.py` builds the pydantic-ai `Model` (and its `model_settings`) from an
+`LLM_PROVIDER` setting:
 
-- `huggingface` (default): `HuggingFaceModel` via HF Inference Providers, a free small model
-  (`meta-llama/Llama-3.2-3B-Instruct` by default).
-- `anthropic`: `AnthropicModel`, ready to use the moment `ANTHROPIC_API_KEY` is set — no code
-  changes, just flipping `LLM_PROVIDER` in secrets.
+- `anthropic` (default): `AnthropicModel`, requires `ANTHROPIC_API_KEY`. Prompt caching is on
+  (see below).
+- `huggingface`: `HuggingFaceModel` via HF Inference Providers, a free small model
+  (`meta-llama/Llama-3.2-3B-Instruct` by default) — a no-cost fallback for local development
+  if you don't have an Anthropic key. No prompt caching support on this path.
 
-**Known tradeoff:** small models are less reliable at structured tool-calling/routing than
-Claude. Mitigations in `agents/orchestrator.py`: the routing decision is a minimal structured
-output (not a multi-step tool chain), and `_run_agent_safely` catches any exception from a
-model call (bad output, timeout, rate limit) and falls back to a fixed escalation reply rather
-than crashing the chat.
+Switching is a config change in `.streamlit/secrets.toml`, not a code change.
 
-**Prompt caching is out of scope for this pass** — it's an Anthropic-specific feature
-(`AnthropicModelSettings.anthropic_cache_instructions` / `anthropic_cache_tool_definitions` in
-pydantic-ai) that can't be exercised or verified against the current free-tier provider. If/when
-`LLM_PROVIDER=anthropic` is enabled, add caching by passing those settings to the specialist
-agents' `model_settings` — system prompts are static per agent, so this is a low-risk addition
-at that point.
+**Known tradeoff on the Hugging Face path:** small models are less reliable at structured
+tool-calling/routing than Claude. Mitigations in `agents/orchestrator.py`: the routing decision
+is a minimal structured output (not a multi-step tool chain), and `_run_agent_safely` catches
+any exception from a model call (bad output, timeout, rate limit) and falls back to a fixed
+escalation reply rather than crashing the chat. These same safeguards apply on the Anthropic
+path too, just less likely to trigger.
 
-## Observability (Logfire)
+### Prompt caching (Anthropic only)
 
-`capabilities/observability/logfire_setup.py` calls `logfire.configure()` +
-`logfire.instrument_pydantic_ai()` once at app startup. This instruments pydantic-ai's own
-spans (model calls, tool calls), so it works identically regardless of which model provider is
-active — unlike prompt caching, it is not Anthropic-specific. With no `LOGFIRE_TOKEN` set
-(`send_to_logfire="if-token-present"`), it runs in local-only mode so the app still works
-without a Logfire account.
+`config/settings.get_model_settings()` returns an `AnthropicModelSettings` with
+`anthropic_cache_instructions="1h"` and `anthropic_cache_tool_definitions="1h"` whenever
+`LLM_PROVIDER=anthropic`. Each specialist agent's system prompt and tool list are static per
+run, which is exactly what these cache breakpoints are for: on the second and later turns in a
+session, Anthropic serves the system instructions and tool definitions from cache instead of
+re-billing them as fresh input tokens on every message. The `1h` TTL (rather than the 5m
+default) is deliberate — a student's questions during a class period are often spaced further
+apart than 5 minutes, and a 5m cache would frequently miss between questions.
+
+`route_and_answer()` threads `model_settings` through to both the orchestrator's routing call
+and whichever specialist agent handles the turn (`agents/orchestrator._run_agent_safely`), so
+caching applies uniformly regardless of route. Returns `None` for the Hugging Face provider,
+which has no equivalent concept in pydantic-ai — the app still runs, just without caching.
+
+## Observability (console logging)
+
+`capabilities/observability/logging_setup.py` configures Python's standard `logging` module
+once at app startup (`setup_logging(settings.log_level)`), attaching a single formatted stream
+handler to the root logger. `agents/orchestrator.py` logs at each decision point — off-topic
+rejection, the routing outcome, any agent failure/fallback, and output-guardrail flags — so
+`uv run streamlit run src/app.py` prints a readable trace of what the assistant did for each
+message straight to the terminal. `LOG_LEVEL` (default `INFO`) controls verbosity; this works
+identically regardless of which model provider is active.
 
 ## Persistence
 

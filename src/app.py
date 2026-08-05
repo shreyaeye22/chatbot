@@ -13,8 +13,16 @@ from capabilities.memory.session_memory import (
     init_session_state,
     set_model_message_history,
 )
-from capabilities.observability.logfire_setup import setup_logfire
-from config.settings import DB_PATH, DEMO_STUDENT_ID, SEED_DIR, get_model, load_settings
+from capabilities.observability.logging_setup import setup_logging
+from config.settings import (
+    DB_PATH,
+    DEMO_STUDENT_ID,
+    SEED_DIR,
+    SUPPORTED_SUBJECTS,
+    get_model,
+    get_model_settings,
+    load_settings,
+)
 from data.db import ensure_db, get_connection
 from data.ingest_docx import ingest_docx
 from skills.summarize_common_questions import build_teacher_digest
@@ -26,7 +34,7 @@ st.set_page_config(page_title="MYP Academic Assistant", page_icon="🎓")
 @st.cache_resource
 def bootstrap() -> None:
     settings = load_settings()
-    setup_logfire(settings.logfire_token)
+    setup_logging(settings.log_level)
     ensure_db(DB_PATH, SEED_DIR)
 
 
@@ -39,7 +47,7 @@ with st.sidebar:
     st.header("Teacher tools")
 
     with st.expander("Upload a worksheet (.docx)"):
-        subject = st.selectbox("Subject", ["math", "physics", "chemistry", "biology"])
+        subject = st.selectbox("Subject", SUPPORTED_SUBJECTS)
         topic = st.text_input("Topic label", placeholder="e.g. linear equations")
         uploaded = st.file_uploader("Worksheet", type=["docx"])
         if st.button("Add to course notes", disabled=not (uploaded and topic)):
@@ -81,12 +89,14 @@ if user_message:
         with st.status("Thinking...", expanded=False) as status:
             status.update(label="Checking your question...")
             model = get_model()
+            model_settings = get_model_settings()
             status.update(label="Finding the right helper and looking things up...")
             answer = route_and_answer(
                 user_message,
                 deps,
                 message_history=get_model_message_history(st.session_state),
                 model=model,
+                model_settings=model_settings,
             )
             status.update(label="Done", state="complete")
 

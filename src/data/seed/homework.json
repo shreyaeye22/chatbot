@@ -54,5 +54,54 @@
     "description": "Read chapter 6 section 2 and answer the 5 reflection questions at the end.",
     "assigned_date": "2026-07-31",
     "due_date": "2026-08-06"
+  },
+  {
+    "subject": "english",
+    "title": "Persuasive essay draft",
+    "description": "Write a first draft (400-600 words) of your persuasive essay, including a clear thesis and three supporting points.",
+    "assigned_date": "2026-08-01",
+    "due_date": "2026-08-08"
+  },
+  {
+    "subject": "english",
+    "title": "Vocabulary log, unit 3",
+    "description": "Add 10 new words from the class novel to your vocabulary log with definitions and a sentence for each.",
+    "assigned_date": "2026-07-30",
+    "due_date": "2026-08-06"
+  },
+  {
+    "subject": "arabic",
+    "title": "Conjugation practice sheet",
+    "description": "Complete the present-tense verb conjugation exercises on the handout for the 10 listed verbs.",
+    "assigned_date": "2026-08-02",
+    "due_date": "2026-08-09"
+  },
+  {
+    "subject": "french",
+    "title": "Comparatif et superlatif exercises",
+    "description": "Complete the comparative and superlative worksheet, exercises 1 to 10.",
+    "assigned_date": "2026-08-01",
+    "due_date": "2026-08-07"
+  },
+  {
+    "subject": "individuals and societies",
+    "title": "Primary source analysis",
+    "description": "Read the assigned primary source document and answer the 5 analysis questions about its origin, purpose, and value.",
+    "assigned_date": "2026-07-30",
+    "due_date": "2026-08-05"
+  },
+  {
+    "subject": "geography",
+    "title": "Population pyramid worksheet",
+    "description": "Draw and label a population pyramid for the assigned country and write two sentences describing its shape.",
+    "assigned_date": "2026-08-02",
+    "due_date": "2026-08-09"
+  },
+  {
+    "subject": "digital design",
+    "title": "Low-fidelity prototype sketches",
+    "description": "Sketch three low-fidelity prototype options for your design project and note one strength and one weakness of each.",
+    "assigned_date": "2026-08-01",
+    "due_date": "2026-08-08"
   }
 ]

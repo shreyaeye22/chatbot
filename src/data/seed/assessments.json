@@ -33,5 +33,47 @@
     "description": "Covers cell structure, organelle functions, and the photosynthesis process.",
     "assessment_date": "2026-08-15",
     "assessment_type": "test"
+  },
+  {
+    "subject": "english",
+    "title": "Persuasive essay final submission",
+    "description": "Final draft of your persuasive essay, submitted with a completed self-assessment rubric.",
+    "assessment_date": "2026-08-14",
+    "assessment_type": "essay"
+  },
+  {
+    "subject": "arabic",
+    "title": "Verb conjugation quiz",
+    "description": "Quiz on present-tense conjugation of the verbs covered this unit.",
+    "assessment_date": "2026-08-12",
+    "assessment_type": "quiz"
+  },
+  {
+    "subject": "french",
+    "title": "Comparatif et superlatif test",
+    "description": "Test on forming and using the comparative and superlative in French.",
+    "assessment_date": "2026-08-13",
+    "assessment_type": "test"
+  },
+  {
+    "subject": "individuals and societies",
+    "title": "Source analysis test",
+    "description": "Covers evaluating primary and secondary sources for origin, purpose, and value.",
+    "assessment_date": "2026-08-16",
+    "assessment_type": "test"
+  },
+  {
+    "subject": "geography",
+    "title": "Population and settlement quiz",
+    "description": "Quiz on population pyramids, migration, and settlement patterns.",
+    "assessment_date": "2026-08-12",
+    "assessment_type": "quiz"
+  },
+  {
+    "subject": "digital design",
+    "title": "Prototype presentation",
+    "description": "Present your low-fidelity prototype and design rationale to the class.",
+    "assessment_date": "2026-08-17",
+    "assessment_type": "presentation"
   }
 ]

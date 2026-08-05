@@ -46,5 +46,41 @@
     "topic": "photosynthesis",
     "content": "Photosynthesis is the process plants use to convert light energy into chemical energy: carbon dioxide + water, using light energy in the chloroplast, produces glucose and oxygen. The word equation is: carbon dioxide + water --light--> glucose + oxygen.",
     "source": "seed"
+  },
+  {
+    "subject": "english",
+    "topic": "persuasive essays",
+    "content": "A persuasive essay states a clear thesis (your position) and supports it with reasons and evidence, addressing a counterargument to strengthen the case. Structure: introduction with thesis, 2-3 body paragraphs each with one main point and supporting evidence, and a conclusion that restates the thesis in light of the evidence given.",
+    "source": "seed"
+  },
+  {
+    "subject": "arabic",
+    "topic": "present-tense verb conjugation",
+    "content": "Arabic present-tense verbs (al-mudari) are conjugated by adding a prefix (and sometimes a suffix) to the verb root that matches the subject - for example, a first-person prefix differs from a third-person one. The verb's core meaning stays in its root letters throughout.",
+    "source": "seed"
+  },
+  {
+    "subject": "french",
+    "topic": "comparatif et superlatif",
+    "content": "Le comparatif compares two things: plus...que (more...than), moins...que (less...than), aussi...que (as...as) - e.g. 'Elle est plus grande que lui.' Le superlatif expresses an extreme: le/la plus...(the most...) or le/la moins...(the least...) - e.g. 'C'est le plus grand de la classe.'",
+    "source": "seed"
+  },
+  {
+    "subject": "individuals and societies",
+    "topic": "evaluating sources",
+    "content": "When evaluating a historical source, consider its origin (who created it and when), purpose (why it was created), and value and limitations (what it can and can't reliably tell us, given who made it and why). A source can be useful even with limitations, as long as those limitations are accounted for.",
+    "source": "seed"
+  },
+  {
+    "subject": "geography",
+    "topic": "population pyramids",
+    "content": "A population pyramid shows the age and gender structure of a population as horizontal bars, youngest at the bottom. A wide base means a high birth rate (common in developing countries); a narrower, more even shape suggests an aging population (common in developed countries).",
+    "source": "seed"
+  },
+  {
+    "subject": "digital design",
+    "topic": "low-fidelity prototyping",
+    "content": "A low-fidelity prototype (e.g. a paper sketch or simple wireframe) tests an idea's core layout and flow quickly and cheaply, before investing time in a polished version. It should be rough enough to invite feedback and easy changes, while still showing the key elements and how a user would move between them.",
+    "source": "seed"
   }
 ]

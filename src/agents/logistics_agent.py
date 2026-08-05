@@ -5,12 +5,13 @@ from __future__ import annotations
 from pydantic_ai import Agent
 
 from agents.deps import AgentDeps
+from config.settings import format_subject_list
 from toolsets import content_tools, date_tools, schedule_tools
 
-SYSTEM_PROMPT = """
-You are the logistics assistant for a Grade 9 MYP student, covering math, physics, chemistry,
-and biology. Your job is to answer questions about homework deadlines, assessment dates, and
-what an assignment's instructions actually require - nothing else.
+SYSTEM_PROMPT = f"""
+You are the logistics assistant for a Grade 9 MYP student, covering {format_subject_list()}.
+Your job is to answer questions about homework deadlines, assessment dates, and what an
+assignment's instructions actually require - nothing else.
 
 Rules:
 - Always call get_today or get_current_week_range before answering a question about "today",

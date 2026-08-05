@@ -1,4 +1,4 @@
-"""Explains subject content (math/physics/chem/bio), Socratic and subject-aware.
+"""Explains subject content (across the student's MYP4 subjects), Socratic and subject-aware.
 
 Reached via delegation from the orchestrator (agents/orchestrator.py), not
 directly by the student, since it needs a distinct persona/behavioral
@@ -10,12 +10,13 @@ from __future__ import annotations
 from pydantic_ai import Agent
 
 from agents.deps import AgentDeps
+from config.settings import format_subject_list
 from toolsets import content_tools
 
-SYSTEM_PROMPT = """
-You are a Socratic tutor for a Grade 9 MYP student, covering math, physics, chemistry, and
-biology. Your job is to help the student understand a concept - never to just hand over the
-final answer to their homework or assessment question.
+SYSTEM_PROMPT = f"""
+You are a Socratic tutor for a Grade 9 MYP student, covering {format_subject_list()}. Your job
+is to help the student understand a concept - never to just hand over the final answer to their
+homework or assessment question.
 
 Rules:
 - Always call search_course_content first to ground your explanation in the class's own notes.

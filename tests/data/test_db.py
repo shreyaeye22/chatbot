@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from config.settings import SUPPORTED_SUBJECTS
 from data.db import ensure_db, get_connection, init_db
 
 
@@ -54,3 +55,11 @@ def test_ensure_db_does_not_duplicate_seed_rows_on_second_call(seeded_db_path):
 
     expected = len(json.loads((Path(SEED_DIR) / "homework.json").read_text(encoding="utf-8")))
     assert count == expected
+
+
+def test_every_supported_subject_has_seed_course_content(seeded_conn: sqlite3.Connection):
+    seeded_subjects = {
+        row["subject"] for row in seeded_conn.execute("SELECT DISTINCT subject FROM course_content")
+    }
+
+    assert set(SUPPORTED_SUBJECTS) <= seeded_subjects

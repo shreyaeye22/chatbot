@@ -10,8 +10,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-SUBJECT_KEYWORDS = {
-    "math",
+from config.settings import SUPPORTED_SUBJECTS
+
+# The subject names themselves (from config.settings.SUPPORTED_SUBJECTS), plus
+# synonyms/sub-topics a student is likely to say instead of the bare subject name
+# (e.g. "newton's laws" rather than the word "physics").
+SUBJECT_KEYWORDS = set(SUPPORTED_SUBJECTS) | {
     "maths",
     "mathematics",
     "algebra",
@@ -19,7 +23,6 @@ SUBJECT_KEYWORDS = {
     "equation",
     "linear",
     "pythagorean",
-    "physics",
     "force",
     "motion",
     "velocity",
@@ -27,7 +30,6 @@ SUBJECT_KEYWORDS = {
     "newton",
     "gravity",
     "energy",
-    "chemistry",
     "chemical",
     "atom",
     "atomic",
@@ -35,11 +37,32 @@ SUBJECT_KEYWORDS = {
     "reaction",
     "molecule",
     "bohr",
-    "biology",
     "cell",
     "photosynthesis",
     "organism",
     "dna",
+    "grammar",
+    "essay",
+    "vocabulary",
+    "literature",
+    "novel",
+    "poem",
+    "paragraph",
+    "comparatif",
+    "superlatif",
+    "conjugaison",
+    "map",
+    "climate",
+    "population",
+    "ecosystem",
+    "society",
+    "societies",
+    "civics",
+    "culture",
+    "history",
+    "prototype",
+    "sketch",
+    "design",
 }
 
 LOGISTICS_KEYWORDS = {

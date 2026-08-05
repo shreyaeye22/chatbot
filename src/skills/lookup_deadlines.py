@@ -22,6 +22,10 @@ def get_upcoming(
     horizon = today + timedelta(days=days_ahead)
     items: list[dict] = []
 
+    # Seed/stored subjects are lowercase; normalize so a differently-cased subject
+    # from an LLM tool call (e.g. "Geography") still matches.
+    subject = subject.strip().lower() if subject else subject
+
     hw_query = "SELECT subject, title, description, due_date FROM homework"
     hw_params: list[str] = []
     if subject:

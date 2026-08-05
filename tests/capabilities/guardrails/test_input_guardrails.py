@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from capabilities.guardrails.input_guardrails import check_input
 
 
@@ -10,6 +12,22 @@ def test_subject_question_is_not_off_topic():
 
 def test_logistics_question_is_not_off_topic():
     result = check_input("When is my chemistry homework due?")
+    assert result.off_topic is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "When is my French homework due?",
+        "Can you help me with my Arabic conjugation?",
+        "What's due this week in Individuals and Societies?",
+        "Can you explain how to read a population pyramid in Geography?",
+        "When is my Digital Design prototype due?",
+        "Can you help me with my English essay?",
+    ],
+)
+def test_new_subject_questions_are_not_off_topic(message):
+    result = check_input(message)
     assert result.off_topic is False
 
 
