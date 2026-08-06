@@ -51,15 +51,30 @@ routing and fallback behavior without hitting the network.
 
 ## Teacher tools
 
-The sidebar has two panels:
+The sidebar has one panel:
 
 - **Upload course material** — a stand-in for a live ManageBac/Teams integration: drop in a
   file, pick a subject/topic, and it's parsed into the course-content the concept agent draws
   on. Accepts `.docx`, `.pdf`, `.pptx`, `.txt`, `.md`, and (on the Anthropic provider only)
   photos of worksheets/whiteboards/textbook pages, transcribed via Claude vision
   (`agents/vision_agent.py`).
-- **Most common student questions** — a digest of questions asked 2+ times across students,
-  so the teacher can see what's worth addressing in class instead of one-on-one.
+
+## Frequently asked prompts
+
+Above the chat input, the app shows up to five one-click buttons for the questions asked most
+often across students, so a student can send a repeat question without retyping it. It's
+empty until questions have been logged — nothing shows on a fresh database.
+
+## Status window
+
+While a question is being answered, the assistant's reply is preceded by a collapsible status
+widget. Once it finishes it collapses to "Done", but expanding it shows which route the question
+was sent to and every tool the specialist agent actually called that turn (e.g.
+`get_upcoming_deadlines(subject='math')`), plus which underlying skill module backs each tool —
+so you can see what the assistant actually did, not just its final answer.
+
+After the first exchange, the chat input's placeholder text switches from "Ask a question..." to
+"Ask a follow-up question..." as a hint that the conversation has context from your last message.
 
 ## Student attachments
 

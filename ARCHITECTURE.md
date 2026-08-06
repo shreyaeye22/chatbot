@@ -104,6 +104,14 @@ as "unknown" rather than a wrong number if a model/provider can't be priced. Exa
 `logistics usage: input=2803 (cache_read=2506, cache_write=0) output=126 requests=2 cost=$0.0024`
 — the high `cache_read` relative to `input` there is prompt caching (see above) working.
 
+**In-UI tool trace:** `agents/orchestrator._tool_calls()` extracts every `ToolCallPart` from
+the specialist agent's `new_messages()` (tool name + args) and attaches it to
+`AgentAnswer.tool_calls`. `ui.components.render_tool_trace()` writes that, plus the chosen route,
+into the `st.status(...)` widget `app.py` already wraps each turn in — the same collapsible
+widget, just with real per-turn content instead of static progress labels. `TOOL_SKILLS` in
+`ui/components.py` maps each tool name to the `skills`/`capabilities` module that actually does
+the work, purely for that display (the orchestrator itself doesn't need to know skill names).
+
 ## Persistence
 
 SQLite (`data/app.db`, gitignored), created and seeded from `src/data/seed/*.json` on first

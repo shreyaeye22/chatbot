@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, replace
 from typing import Literal, Sequence
 
 from pydantic import BaseModel
-from pydantic_ai import Agent, UserContent
+from pydantic_ai import Agent, ModelResponse, ToolCallPart, UserContent
 from pydantic_ai.usage import RunUsage
 
 from agents.concept_agent import concept_agent
@@ -78,6 +78,7 @@ class AgentAnswer:
     route: str
     new_messages: list = field(default_factory=list)
     flagged: bool = False
+    tool_calls: list[dict] = field(default_factory=list)
 
 
 def _message_text(user_message: str | Sequence[UserContent]) -> str:
@@ -91,6 +92,22 @@ def _has_attachment(user_message: str | Sequence[UserContent]) -> bool:
     return not isinstance(user_message, str) and any(
         not isinstance(part, str) for part in user_message
     )
+
+
+def _tool_calls(new_messages: list) -> list[dict]:
+    """Every tool the specialist agent actually invoked this turn, in call order.
+
+    Surfaced to the UI (ui.components.render_tool_trace) so a student/teacher can see
+    what the assistant did, not just its final answer.
+    """
+    calls = []
+    for message in new_messages:
+        if not isinstance(message, ModelResponse):
+            continue
+        for part in message.parts:
+            if isinstance(part, ToolCallPart):
+                calls.append({"tool": part.tool_name, "args": part.args_as_dict()})
+    return calls
 
 
 def _log_usage(label: str, usage: RunUsage | None) -> None:
@@ -229,6 +246,12 @@ def route_and_answer(
                 answered=True,
             )
 
-        return AgentAnswer(text=text, route=route, new_messages=new_messages, flagged=flagged)
+        return AgentAnswer(
+            text=text,
+            route=route,
+            new_messages=new_messages,
+            flagged=flagged,
+            tool_calls=_tool_calls(new_messages),
+        )
     finally:
         conn.close()

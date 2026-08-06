@@ -1,5 +1,5 @@
-"""Task: turn the logged questions into a teacher-facing digest of what's
-being asked repeatedly, so class time spent re-explaining goes down."""
+"""Task: turn the logged questions into ready-to-send prompt suggestions for
+students, surfacing what's already being asked repeatedly."""
 
 from __future__ import annotations
 
@@ -8,13 +8,7 @@ import sqlite3
 from capabilities.memory.class_memory import get_common_questions
 
 
-def build_teacher_digest(
-    conn: sqlite3.Connection, *, limit: int = 5, min_count: int = 2
-) -> list[dict]:
-    """Common questions (asked min_count+ times), each with a ready-to-display summary line."""
-    common = get_common_questions(conn, limit=limit, min_count=min_count)
-    for item in common:
-        item["summary"] = (
-            f"Asked {item['count']}x by {item['student_count']} student(s) — {item['question']}"
-        )
-    return common
+def build_faq_prompts(conn: sqlite3.Connection, *, limit: int = 5) -> list[str]:
+    """Top asked questions, phrased ready to show as one-click prompt suggestions for students."""
+    common = get_common_questions(conn, limit=limit, min_count=1)
+    return [item["question"] for item in common]

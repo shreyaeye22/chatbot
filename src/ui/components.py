@@ -13,6 +13,23 @@ from data.document_ingest import extract_text
 DOCUMENT_EXTENSIONS = ["docx", "pdf", "pptx", "txt", "md"]
 IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"]
 
+# Maps an agent-callable tool (toolsets/*) to the underlying skill module that does its
+# real work (skills/* or capabilities/*), purely for the status-window trace below - the
+# tool is the thing the model chose to call, the skill is what actually ran.
+TOOL_SKILLS = {
+    "get_upcoming_deadlines": "skills.lookup_deadlines",
+    "get_next_deadline": "skills.lookup_deadlines",
+    "search_course_content": "skills.explain_concept",
+    "check_if_repeated_question": "capabilities.memory.student_memory",
+}
+
+ROUTE_LABELS = {
+    "logistics": "the logistics helper",
+    "concept": "the concept tutor",
+    "escalation": "your teacher (escalated)",
+    "off_topic": "nowhere (off-topic)",
+}
+
 
 def upload_file_types(*, include_images: bool) -> list[str]:
     """Extensions to pass to a file_uploader/chat_input's file_type/type argument.
@@ -83,9 +100,45 @@ def stream_text(text: str, delay: float = 0.015) -> Iterator[str]:
         time.sleep(delay)
 
 
-def render_teacher_digest(digest: list[dict]) -> None:
-    if not digest:
-        st.caption("No repeated questions logged yet.")
+def render_tool_trace(status: Any, route: str, tool_calls: list[dict]) -> None:
+    """Write what actually happened this turn into an st.status container.
+
+    `status` just needs a `.write(str)` method (an `st.status`/`st.container` in the app,
+    a stub in tests) so this stays testable without a live Streamlit session. Content
+    written here persists in the collapsed status widget after it completes, so expanding
+    it later shows which tools/skills the assistant used to answer.
+    """
+    status.write(f"Routed to {ROUTE_LABELS.get(route, route)}")
+    if not tool_calls:
+        status.write("No tools called - answered directly.")
         return
-    for item in digest:
-        st.markdown(f"- {item['summary']}")
+    for call in tool_calls:
+        args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
+        line = f"🔧 Called `{call['tool']}({args})`"
+        skill = TOOL_SKILLS.get(call["tool"])
+        if skill:
+            line += f" → `{skill}`"
+        status.write(line)
+
+
+def chat_input_placeholder(has_history: bool) -> str:
+    """Placeholder text for the chat input: nudge toward a follow-up once a turn has happened."""
+    return "Ask a follow-up question..." if has_history else "Ask a question..."
+
+
+def render_faq_prompts(prompts: list[str]) -> str | None:
+    """Row of clickable frequently-asked-question buttons next to the chat input.
+
+    Returns the clicked prompt's text so the caller can feed it through the
+    same send path as a typed message, or None if nothing was clicked.
+    """
+    if not prompts:
+        return None
+
+    st.caption("Frequently asked")
+    clicked = None
+    for col, prompt in zip(st.columns(len(prompts)), prompts):
+        with col:
+            if st.button(prompt, key=f"faq_prompt_{prompt}", use_container_width=True):
+                clicked = prompt
+    return clicked

@@ -31,6 +31,26 @@ def _scripted_model(route: str, specialist_reply: str) -> FunctionModel:
     return FunctionModel(_script)
 
 
+def _scripted_tool_call_model(route: str, tool_name: str, final_reply: str) -> FunctionModel:
+    """Routes like `_scripted_model`, but has the specialist call `tool_name` once
+    (with no args) before answering, so tests can assert on `AgentAnswer.tool_calls`."""
+
+    def _script(messages: list, info: AgentInfo) -> m.ModelResponse:
+        if info.output_tools:
+            tool_name_ = info.output_tools[0].name
+            return m.ModelResponse(
+                parts=[m.ToolCallPart(tool_name=tool_name_, args={"route": route, "reason": "test"})]
+            )
+        already_called = any(
+            isinstance(part, m.ToolReturnPart) for msg in messages for part in getattr(msg, "parts", [])
+        )
+        if already_called:
+            return m.ModelResponse(parts=[m.TextPart(content=final_reply)])
+        return m.ModelResponse(parts=[m.ToolCallPart(tool_name=tool_name, args={})])
+
+    return FunctionModel(_script)
+
+
 def _always_raise(messages: list, info: AgentInfo) -> m.ModelResponse:
     raise RuntimeError("simulated model failure")
 
@@ -139,6 +159,25 @@ def test_image_only_message_logs_a_placeholder_instead_of_crashing(seeded_db_pat
     row = conn.execute("SELECT question FROM question_log WHERE student_id = 'alice'").fetchone()
     conn.close()
     assert row["question"] == "[attached file]"
+
+
+def test_tool_calls_made_by_the_specialist_are_captured(seeded_db_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+    model = _scripted_tool_call_model("logistics", "get_today", "Nothing due today.")
+
+    answer = route_and_answer("what's due today", deps, model=model)
+
+    assert answer.route == "logistics"
+    assert answer.tool_calls == [{"tool": "get_today", "args": {}}]
+
+
+def test_tool_calls_are_empty_when_the_specialist_answers_directly(seeded_db_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+    model = _scripted_model("concept", "Think about F = m * a.")
+
+    answer = route_and_answer("why does newton's second law work", deps, model=model)
+
+    assert answer.tool_calls == []
 
 
 def test_run_agent_safely_returns_usage_on_success(seeded_db_path):

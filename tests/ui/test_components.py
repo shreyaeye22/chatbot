@@ -9,9 +9,21 @@ from ui.components import (
     DOCUMENT_EXTENSIONS,
     IMAGE_EXTENSIONS,
     build_message_content,
+    chat_input_placeholder,
     parse_chat_input,
+    render_tool_trace,
     upload_file_types,
 )
+
+
+class _StubStatus:
+    """Duck-types the subset of st.status's interface render_tool_trace needs."""
+
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def write(self, text: str) -> None:
+        self.lines.append(text)
 
 
 class FakeUploadedFile(io.BytesIO):
@@ -84,3 +96,29 @@ def test_build_message_content_extracts_text_for_a_document_attachment():
     assert "can you explain this?" in content
     assert "notes.txt" in content
     assert "Newton's second law: F = m * a" in content
+
+
+def test_render_tool_trace_lists_each_tool_call_and_its_backing_skill():
+    status = _StubStatus()
+
+    render_tool_trace(
+        status, "logistics", [{"tool": "get_upcoming_deadlines", "args": {"subject": "math"}}]
+    )
+
+    assert any("Routed to" in line for line in status.lines)
+    tool_line = next(line for line in status.lines if "get_upcoming_deadlines" in line)
+    assert "subject='math'" in tool_line
+    assert "skills.lookup_deadlines" in tool_line
+
+
+def test_render_tool_trace_notes_when_no_tools_were_called():
+    status = _StubStatus()
+
+    render_tool_trace(status, "escalation", [])
+
+    assert any("No tools called" in line for line in status.lines)
+
+
+def test_chat_input_placeholder_switches_to_a_follow_up_after_the_first_turn():
+    assert chat_input_placeholder(has_history=False) == "Ask a question..."
+    assert chat_input_placeholder(has_history=True) == "Ask a follow-up question..."

@@ -27,12 +27,14 @@ from config.settings import (
 )
 from data.db import ensure_db, get_connection
 from data.document_ingest import ingest_document, store_course_content
-from skills.summarize_common_questions import build_teacher_digest
+from skills.summarize_common_questions import build_faq_prompts
 from ui.components import (
     build_message_content,
+    chat_input_placeholder,
     parse_chat_input,
     render_chat_history,
-    render_teacher_digest,
+    render_faq_prompts,
+    render_tool_trace,
     stream_text,
     upload_file_types,
 )
@@ -98,26 +100,27 @@ with st.sidebar:
             finally:
                 conn.close()
 
-    with st.expander("Most common student questions", expanded=True):
-        conn = get_connection(deps.db_path)
-        try:
-            digest = build_teacher_digest(conn)
-        finally:
-            conn.close()
-        render_teacher_digest(digest)
-
 st.title("🎓 MYP Academic Assistant")
 st.caption("Ask about homework deadlines, assessment dates, instructions, or a concept from class.")
 st.caption("You can attach a photo or file of a worksheet to your question, too.")
 
 render_chat_history(get_chat_history(st.session_state))
 
+conn = get_connection(deps.db_path)
+try:
+    faq_prompts = build_faq_prompts(conn, limit=5)
+finally:
+    conn.close()
+faq_selection = render_faq_prompts(faq_prompts)
+
 chat_value = st.chat_input(
-    "Ask a question...",
+    chat_input_placeholder(has_history=bool(get_chat_history(st.session_state))),
     accept_file=True,
     file_type=upload_file_types(include_images=vision_enabled),
 )
 text, attachment = parse_chat_input(chat_value)
+if faq_selection:
+    text, attachment = faq_selection, None
 
 if text or attachment is not None:
     display_text = text or f"[attached {attachment.name}]"
@@ -142,6 +145,7 @@ if text or attachment is not None:
                 model=model,
                 model_settings=model_settings,
             )
+            render_tool_trace(status, answer.route, answer.tool_calls)
             status.update(label="Done", state="complete")
 
         st.write_stream(stream_text(answer.text))

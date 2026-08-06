@@ -14,6 +14,7 @@ Instructions for Claude Code when working in this repository.
 - After every code change, update the `README` to reflect the change (new behavior, usage, setup steps, etc.) if it is affected.
 - After every code change, update or add tests covering the change.
 - Treat README and test updates as part of the change itself, not a follow-up step — do them in the same turn as the code change.
+- Make sure to only add tests that evaluate business value. 
 
 
 ## Access Instructions
