@@ -150,7 +150,15 @@ if text or attachment is not None:
 
         st.write_stream(stream_text(answer.text))
 
-    add_chat_message(st.session_state, "assistant", answer.text)
+    add_chat_message(
+        st.session_state,
+        "assistant",
+        answer.text,
+        trace={"route": answer.route, "tool_calls": answer.tool_calls},
+    )
     set_model_message_history(
         st.session_state, get_model_message_history(st.session_state) + answer.new_messages
     )
+    # Rerun so the chat input immediately reflects updated history (follow-up placeholder,
+    # ui.components.chat_input_placeholder) instead of waiting for the next interaction.
+    st.rerun()

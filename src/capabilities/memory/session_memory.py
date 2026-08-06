@@ -23,8 +23,18 @@ def get_chat_history(session_state: MutableMapping[str, Any]) -> list[dict]:
     return session_state.get(CHAT_HISTORY_KEY, [])
 
 
-def add_chat_message(session_state: MutableMapping[str, Any], role: str, content: str) -> None:
-    session_state.setdefault(CHAT_HISTORY_KEY, []).append({"role": role, "content": content})
+def add_chat_message(
+    session_state: MutableMapping[str, Any],
+    role: str,
+    content: str,
+    trace: dict | None = None,
+) -> None:
+    """Append a chat message. `trace` (route + tool_calls) is optional and assistant-only -
+    when present it's replayed as a collapsible expander by ui.components.render_chat_history."""
+    message: dict[str, Any] = {"role": role, "content": content}
+    if trace is not None:
+        message["trace"] = trace
+    session_state.setdefault(CHAT_HISTORY_KEY, []).append(message)
 
 
 def get_model_message_history(session_state: MutableMapping[str, Any]) -> list:

@@ -68,10 +68,12 @@ empty until questions have been logged — nothing shows on a fresh database.
 ## Status window
 
 While a question is being answered, the assistant's reply is preceded by a collapsible status
-widget. Once it finishes it collapses to "Done", but expanding it shows which route the question
-was sent to and every tool the specialist agent actually called that turn (e.g.
-`get_upcoming_deadlines(subject='math')`), plus which underlying skill module backs each tool —
-so you can see what the assistant actually did, not just its final answer.
+widget showing live progress. Once the answer lands, that trace is preserved as a collapsible
+"How I got this answer" expander under the assistant's chat bubble (collapsed by default) —
+expanding it shows which route the question was sent to and every tool the specialist agent
+actually called that turn (e.g. `get_upcoming_deadlines(subject='math')`), plus which underlying
+skill module backs each tool. This persists for every past turn in the conversation, not just the
+most recent one.
 
 After the first exchange, the chat input's placeholder text switches from "Ask a question..." to
 "Ask a follow-up question..." as a hint that the conversation has context from your last message.

@@ -23,6 +23,26 @@ def test_chat_history_round_trips_through_session_state():
     ]
 
 
+def test_chat_message_trace_is_stored_only_when_given():
+    session_state: dict = {}
+    init_session_state(session_state)
+
+    add_chat_message(session_state, "user", "when is my homework due?")
+    add_chat_message(
+        session_state,
+        "assistant",
+        "Thursday.",
+        trace={"route": "logistics", "tool_calls": [{"tool": "get_next_deadline", "args": {}}]},
+    )
+
+    history = get_chat_history(session_state)
+    assert "trace" not in history[0]
+    assert history[1]["trace"] == {
+        "route": "logistics",
+        "tool_calls": [{"tool": "get_next_deadline", "args": {}}],
+    }
+
+
 def test_model_message_history_round_trips_through_session_state():
     session_state: dict = {}
     init_session_state(session_state)

@@ -83,6 +83,10 @@ def build_message_content(text: str, uploaded_file: Any | None) -> str | list[Us
 def render_chat_history(chat_history: list[dict]) -> None:
     for message in chat_history:
         with st.chat_message(message["role"]):
+            trace = message.get("trace")
+            if trace:
+                with st.expander("How I got this answer", expanded=False):
+                    render_tool_trace(st, trace["route"], trace["tool_calls"])
             st.write(message["content"])
 
 

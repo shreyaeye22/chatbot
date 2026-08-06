@@ -107,10 +107,25 @@ as "unknown" rather than a wrong number if a model/provider can't be priced. Exa
 **In-UI tool trace:** `agents/orchestrator._tool_calls()` extracts every `ToolCallPart` from
 the specialist agent's `new_messages()` (tool name + args) and attaches it to
 `AgentAnswer.tool_calls`. `ui.components.render_tool_trace()` writes that, plus the chosen route,
-into the `st.status(...)` widget `app.py` already wraps each turn in — the same collapsible
-widget, just with real per-turn content instead of static progress labels. `TOOL_SKILLS` in
-`ui/components.py` maps each tool name to the `skills`/`capabilities` module that actually does
-the work, purely for that display (the orchestrator itself doesn't need to know skill names).
+into the `st.status(...)` widget `app.py` wraps each turn in while the answer is being generated
+(live progress), and again into an `st.expander("How I got this answer")` when
+`ui.components.render_chat_history()` replays that turn from `session_state` afterwards — that's
+why `capabilities.memory.session_memory.add_chat_message()` takes an optional `trace` dict
+(`{"route", "tool_calls"}`) stored alongside the message instead of the trace only living in the
+one-shot `st.status`. `TOOL_SKILLS` in `ui/components.py` maps each tool name to the
+`skills`/`capabilities` module that actually does the work, purely for that display (the
+orchestrator itself doesn't need to know skill names).
+
+**Why `app.py` calls `st.rerun()` after each turn:** `st.chat_input`'s `placeholder` argument
+(`ui.components.chat_input_placeholder`, switches to "Ask a follow-up question..." once
+`chat_history` is non-empty) is evaluated once per script run, at the point `st.chat_input(...)`
+is called - which happens *before* the current turn's messages are appended to `chat_history`
+further down the script. Without an explicit rerun, Streamlit doesn't re-execute the script just
+because `session_state` changed, so the updated placeholder wouldn't actually reach the browser
+until some *other* widget interaction happened to trigger the next rerun. The `st.rerun()` at the
+end of the turn forces that extra pass immediately, which is also what makes the persisted-trace
+replay above necessary - without persisting the trace, that same rerun would immediately wipe the
+just-shown `st.status` content before the user could expand it.
 
 ## Persistence
 
