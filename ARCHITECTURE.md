@@ -4,15 +4,17 @@
 
 ```
 Streamlit UI (src/app.py)
+  -> ui.components.build_message_content()  (text, or [text, image] for an attachment)
   -> agents/orchestrator.route_and_answer()
-       -> capabilities/guardrails (input check: off-topic? wants direct answer?)
-       -> agents/orchestrator_agent  (LLM call: pick a route)
+       -> capabilities/guardrails (input check: off-topic? wants direct answer?
+                                    skipped for off-topic when there's an attachment)
+       -> agents/orchestrator_agent  (LLM call: pick a route - can see an attached image too)
        -> agents/{logistics,concept,escalation}_agent  (LLM call: answer, using toolsets)
             -> toolsets/*  (thin wrappers)
                  -> skills/*  (deterministic business logic)
                       -> data/db.py (SQLite)
        -> capabilities/guardrails (output check, concept answers only)
-       -> capabilities/memory (log the question)
+       -> capabilities/memory (log the question's text; usage/cost logged via logging)
   <- AgentAnswer(text, route, ...)
 Streamlit UI renders the reply (simulated stream) and updates session memory
 ```
@@ -93,6 +95,15 @@ rejection, the routing outcome, any agent failure/fallback, and output-guardrail
 message straight to the terminal. `LOG_LEVEL` (default `INFO`) controls verbosity; this works
 identically regardless of which model provider is active.
 
+**Token/cache-token/cost logging:** `agents/orchestrator._log_usage()` logs, after the
+routing call, after the specialist call, and as a per-turn total: input tokens, cache-read
+tokens, cache-write tokens, output tokens, request count, and an estimated cost. The cost comes
+from pydantic-ai's `RunUsage.cost` (computed via [genai-prices](https://github.com/pydantic/genai-prices)
+from the model/provider and token counts) rather than a pricing table maintained here, and logs
+as "unknown" rather than a wrong number if a model/provider can't be priced. Example line:
+`logistics usage: input=2803 (cache_read=2506, cache_write=0) output=126 requests=2 cost=$0.0024`
+— the high `cache_read` relative to `input` there is prompt caching (see above) working.
+
 ## Persistence
 
 SQLite (`data/app.db`, gitignored), created and seeded from `src/data/seed/*.json` on first
@@ -106,15 +117,40 @@ with its route and whether it was answered — powers the teacher digest via
 `capabilities/memory/class_memory.py`).
 
 **Getting real content in:** no live ManageBac/Teams integration. Instead, the sidebar's
-"Upload a worksheet (.docx)" panel (`data/ingest_docx.py`, using `python-docx`) lets a teacher
-drop in a Word document, which is parsed into a `course_content` row for the concept agent to
-draw on.
+"Upload course material" panel (`data/document_ingest.py`) lets a teacher drop in a file, which
+is parsed into a `course_content` row for the concept agent to draw on.
+
+## Documents and images
+
+Two separate paths, deliberately not unified, since only one of them needs an LLM call:
+
+- **Text documents** (`.docx`, `.pdf`, `.pptx`, `.txt`, `.md`) — `data/document_ingest.py`
+  extracts text deterministically (`python-docx`, `pypdf`, `python-pptx`, or a plain read) and
+  either stores it directly as `course_content` (teacher upload) or folds it into the chat
+  prompt as `"[Attached file '<name>':]\n<text>"` (student attachment,
+  `ui.components.build_message_content`). No LLM call needed, so it works on either provider.
+- **Images** (worksheets, whiteboards, textbook photos) — need an LLM to actually read, so they
+  go through `agents/vision_agent.py` (teacher upload: transcribed once into `course_content`)
+  or are passed straight through as multimodal content to whichever agent handles that chat
+  turn (student attachment) via pydantic-ai's `BinaryContent`. Either way this requires a
+  vision-capable model, so both upload paths in `app.py` check
+  `load_settings().llm_provider == "anthropic"` and hide/disable the image option otherwise —
+  there's no image support on the Hugging Face fallback.
+
+`agents/orchestrator.route_and_answer()` accepts `str | Sequence[UserContent]` for this reason:
+a message with an image attached is a list like `["caption text", BinaryContent(...)]` (or just
+`[BinaryContent(...)]` with no caption). `_message_text()`/`_has_attachment()` extract a
+text-only view for the guardrail check and for `question_log` (which stores plain text — an
+image-only message logs the placeholder `"[attached file]"`), while the *full* multimodal
+content is still what gets sent to the LLM, so it can actually see the image.
 
 **Limitations:** single generic demo student (no auth) — `question_log` is keyed by a constant
 `student_id`, so the "asked by N students" rollup only reflects concurrent demo sessions, not a
 real class roster. Output guardrail flags (`too_direct`) are computed but not currently
 persisted or surfaced in the UI — see `agents/orchestrator.AgentAnswer.flagged` as the existing
-extension point.
+extension point. Chat-attached images/files aren't persisted in session history — they apply to
+the turn they're sent on; re-rendering `st.session_state`'s chat history after a rerun shows the
+text only (see `capabilities/memory/session_memory.py`).
 
 ## Memory layers
 

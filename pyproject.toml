@@ -6,13 +6,16 @@ requires-python = ">=3.12"
 dependencies = [
     "logfire>=4.39.0",
     "pydantic-ai[huggingface]>=2.23.0",
+    "pypdf>=6.14.2",
     "python-docx>=1.2.0",
+    "python-pptx>=1.0.2",
     "streamlit>=1.60.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "reportlab>=5.0.0",
 ]
 
 [tool.pytest.ini_options]

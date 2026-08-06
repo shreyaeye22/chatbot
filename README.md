@@ -5,7 +5,9 @@ questions about homework deadlines, assessment dates, assignment instructions, a
 across the student's MYP4 subjects (English, Arabic, French, Individuals and Societies,
 Geography, Biology, Chemistry, Physics, Math, and Digital Design — see
 `config.settings.SUPPORTED_SUBJECTS`), so students stop missing information scattered across
-ManageBac/Teams and stop re-asking the teacher the same questions in class.
+ManageBac/Teams and stop re-asking the teacher the same questions in class. Students can also
+attach a photo or file of a worksheet to a question, and teachers can upload course material in
+several formats (see "Teacher tools" below).
 
 Built with [pydantic-ai](https://ai.pydantic.dev/) (an orchestrator agent routing to
 logistics/concept/escalation specialist agents) on the Anthropic API with prompt caching
@@ -51,8 +53,17 @@ routing and fallback behavior without hitting the network.
 
 The sidebar has two panels:
 
-- **Upload a worksheet (.docx)** — a stand-in for a live ManageBac/Teams integration: drop in
-  a Word document, pick a subject/topic, and it's parsed into the course-content the concept
-  agent draws on.
+- **Upload course material** — a stand-in for a live ManageBac/Teams integration: drop in a
+  file, pick a subject/topic, and it's parsed into the course-content the concept agent draws
+  on. Accepts `.docx`, `.pdf`, `.pptx`, `.txt`, `.md`, and (on the Anthropic provider only)
+  photos of worksheets/whiteboards/textbook pages, transcribed via Claude vision
+  (`agents/vision_agent.py`).
 - **Most common student questions** — a digest of questions asked 2+ times across students,
   so the teacher can see what's worth addressing in class instead of one-on-one.
+
+## Student attachments
+
+The chat input also accepts an attached photo or file (same formats as the teacher upload).
+Images are shown to the model directly (vision, Anthropic only); other documents are
+text-extracted and included as context for that question. Attachments aren't saved as
+permanent course content — they only apply to that one question.

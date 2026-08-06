@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pydantic_ai import BinaryContent
 from pydantic_ai import messages as m
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
@@ -7,6 +8,8 @@ from agents.deps import AgentDeps
 from agents.orchestrator import (
     ESCALATION_FALLBACK_REPLY,
     OFF_TOPIC_REPLY,
+    _has_attachment,
+    _message_text,
     _run_agent_safely,
     route_and_answer,
 )
@@ -87,10 +90,74 @@ def test_run_agent_safely_returns_error_instead_of_raising(seeded_db_path):
     deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
     poison_model = FunctionModel(_always_raise)
 
-    output, new_messages, error = _run_agent_safely(
+    output, new_messages, usage, error = _run_agent_safely(
         logistics_agent, "when is my homework due", deps=deps, model=poison_model, message_history=[]
     )
 
     assert output is None
     assert new_messages == []
+    assert usage is None
     assert isinstance(error, Exception)
+
+
+def test_message_text_joins_only_the_text_parts():
+    image = BinaryContent(data=b"fake", media_type="image/png")
+    assert _message_text(["look at this", image]) == "look at this"
+    assert _message_text("plain string") == "plain string"
+    assert _message_text([image]) == ""
+
+
+def test_has_attachment_detects_non_text_parts():
+    image = BinaryContent(data=b"fake", media_type="image/png")
+    assert _has_attachment(["caption", image]) is True
+    assert _has_attachment(["just text"]) is False
+    assert _has_attachment("plain string") is False
+
+
+def test_attachment_bypasses_off_topic_check_even_with_an_unrelated_caption(seeded_db_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+    model = _scripted_model("concept", "That's a population pyramid - here's a hint...")
+    image = BinaryContent(data=b"fake-worksheet-photo", media_type="image/png")
+
+    # "look at this" alone (no subject keyword) would normally be flagged off-topic.
+    answer = route_and_answer(["look at this", image], deps, model=model)
+
+    assert answer.route == "concept"
+    assert answer.text == "That's a population pyramid - here's a hint..."
+
+
+def test_image_only_message_logs_a_placeholder_instead_of_crashing(seeded_db_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+    model = _scripted_model("concept", "Here's what I see in your photo...")
+    image = BinaryContent(data=b"fake-worksheet-photo", media_type="image/png")
+
+    answer = route_and_answer([image], deps, model=model)
+
+    assert answer.route == "concept"
+
+    conn = get_connection(seeded_db_path)
+    row = conn.execute("SELECT question FROM question_log WHERE student_id = 'alice'").fetchone()
+    conn.close()
+    assert row["question"] == "[attached file]"
+
+
+def test_run_agent_safely_returns_usage_on_success(seeded_db_path):
+    from agents.logistics_agent import logistics_agent
+
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+
+    def _reply(messages: list, info: AgentInfo) -> m.ModelResponse:
+        return m.ModelResponse(parts=[m.TextPart(content="Your homework is due Friday.")])
+
+    output, _, usage, error = _run_agent_safely(
+        logistics_agent,
+        "when is my homework due",
+        deps=deps,
+        model=FunctionModel(_reply),
+        message_history=[],
+    )
+
+    assert error is None
+    assert output == "Your homework is due Friday."
+    assert usage is not None
+    assert usage.requests == 1

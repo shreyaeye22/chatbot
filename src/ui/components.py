@@ -1,11 +1,66 @@
-"""Reusable Streamlit chat rendering and status-indicator helpers."""
+"""Reusable Streamlit chat rendering, status-indicator, and attachment helpers."""
 
 from __future__ import annotations
 
 import time
-from typing import Iterator
+from typing import Any, Iterator
 
 import streamlit as st
+from pydantic_ai import BinaryContent, UserContent
+
+from data.document_ingest import extract_text
+
+DOCUMENT_EXTENSIONS = ["docx", "pdf", "pptx", "txt", "md"]
+IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"]
+
+
+def upload_file_types(*, include_images: bool) -> list[str]:
+    """Extensions to pass to a file_uploader/chat_input's file_type/type argument.
+
+    Images are only offered when `include_images` is True - the vision path
+    (agents/vision_agent.py) requires the Anthropic provider, so app.py gates
+    this on the configured LLM_PROVIDER.
+    """
+    return DOCUMENT_EXTENSIONS + IMAGE_EXTENSIONS if include_images else DOCUMENT_EXTENSIONS
+
+
+def parse_chat_input(user_input: Any) -> tuple[str, Any | None]:
+    """Normalize st.chat_input's return value into (text, first_uploaded_file_or_None).
+
+    With accept_file=True, st.chat_input returns a dict-like ChatInputValue
+    (`.text`, `.files`) instead of a plain string; this hides that shape from
+    the rest of the app.
+    """
+    if user_input is None:
+        return "", None
+    if isinstance(user_input, str):
+        return user_input, None
+    files = user_input.files or []
+    return user_input.text, (files[0] if files else None)
+
+
+def build_message_content(text: str, uploaded_file: Any | None) -> str | list[UserContent]:
+    """Turn a chat message + optional attachment into agent-ready input.
+
+    Images are passed through natively as multimodal content so the model can
+    actually see them (vision). Other documents are text-extracted
+    (data.document_ingest, same parsers as the teacher-upload path) and folded
+    into the prompt as context, since there's no benefit to sending a Word doc
+    or PDF as raw bytes when we can already read it deterministically.
+    """
+    if uploaded_file is None:
+        return text
+
+    if uploaded_file.type and uploaded_file.type.startswith("image/"):
+        parts: list[UserContent] = []
+        if text:
+            parts.append(text)
+        parts.append(BinaryContent(data=uploaded_file.getvalue(), media_type=uploaded_file.type))
+        return parts
+
+    extracted = extract_text(uploaded_file, uploaded_file.name)
+    label = f"[Attached file '{uploaded_file.name}':]\n{extracted}"
+    return f"{text}\n\n{label}" if text else label
 
 
 def render_chat_history(chat_history: list[dict]) -> None:
