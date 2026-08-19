@@ -29,6 +29,7 @@ from config.settings import (
     get_model,
     get_model_settings,
     load_settings,
+    with_api_key_override,
 )
 from data.db import ensure_db, get_connection
 from data.document_ingest import (
@@ -42,6 +43,7 @@ from ui.components import (
     build_message_content,
     chat_input_placeholder,
     parse_chat_input,
+    render_api_key_sidebar,
     render_chat_history,
     render_course_library,
     render_faq_prompts,
@@ -75,6 +77,10 @@ deps = AgentDeps(
 )
 
 with st.sidebar:
+    user_api_key = render_api_key_sidebar(settings.llm_provider)
+    effective_settings = with_api_key_override(settings, user_api_key)
+    has_api_key = bool(user_api_key)
+
     st.header("Teacher tools")
 
     upload_label = "Upload course material (.docx, .pdf, .pptx, .txt, .md"
@@ -85,15 +91,21 @@ with st.sidebar:
         uploaded = st.file_uploader("File", type=upload_file_types(include_images=vision_enabled))
         if not vision_enabled:
             st.caption("Image upload needs the Anthropic provider (set LLM_PROVIDER=anthropic).")
-        if st.button("Add to course notes", disabled=not (uploaded and topic)):
+        is_image_upload = bool(uploaded and uploaded.type and uploaded.type.startswith("image/"))
+        if is_image_upload and not has_api_key:
+            st.caption("Transcribing a photo needs your API key above.")
+        if st.button(
+            "Add to course notes",
+            disabled=not (uploaded and topic) or (is_image_upload and not has_api_key),
+        ):
             conn = get_connection(deps.db_path)
             collection = vector_store.get_collection(deps.vector_index_path)
             try:
-                if uploaded.type and uploaded.type.startswith("image/"):
+                if is_image_upload:
                     vision_result = vision_agent.run_sync(
                         [BinaryContent(data=uploaded.getvalue(), media_type=uploaded.type)],
-                        model=get_model(),
-                        model_settings=get_model_settings(),
+                        model=get_model(effective_settings),
+                        model_settings=get_model_settings(effective_settings),
                     )
                     store_course_content(
                         conn,
@@ -138,12 +150,18 @@ with library_col:
 with chat_col:
     render_chat_history(get_chat_history(st.session_state))
 
+    if not has_api_key:
+        st.error(
+            f"🔑 Add your {settings.llm_provider.title()} API key in the sidebar before "
+            "chatting with the assistant."
+        )
+
     conn = get_connection(deps.db_path)
     try:
         faq_prompts = build_faq_prompts(conn, limit=5)
     finally:
         conn.close()
-    faq_selection = render_faq_prompts(faq_prompts)
+    faq_selection = render_faq_prompts(faq_prompts, disabled=not has_api_key)
 
     focused_content_id = get_focused_content_id(st.session_state)
     focused_document = None
@@ -164,12 +182,13 @@ with chat_col:
         chat_input_placeholder(has_history=bool(get_chat_history(st.session_state))),
         accept_file=True,
         file_type=upload_file_types(include_images=vision_enabled),
+        disabled=not has_api_key,
     )
     text, attachment = parse_chat_input(chat_value)
     if faq_selection:
         text, attachment = faq_selection, None
 
-    if text or attachment is not None:
+    if (text or attachment is not None) and has_api_key:
         display_text = text or f"[attached {attachment.name}]"
         add_chat_message(st.session_state, "user", display_text)
         with st.chat_message("user"):
@@ -182,8 +201,8 @@ with chat_col:
         with st.chat_message("assistant"):
             with st.status("Thinking...", expanded=False) as status:
                 status.update(label="Checking your question...")
-                model = get_model()
-                model_settings = get_model_settings()
+                model = get_model(effective_settings)
+                model_settings = get_model_settings(effective_settings)
                 status.update(label="Finding the right helper and looking things up...")
                 answer = route_and_answer(
                     message_content,

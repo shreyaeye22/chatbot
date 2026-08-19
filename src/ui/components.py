@@ -156,11 +156,14 @@ def chat_input_placeholder(has_history: bool) -> str:
     return "Ask a follow-up question..." if has_history else "Ask a question..."
 
 
-def render_faq_prompts(prompts: list[str]) -> str | None:
+def render_faq_prompts(prompts: list[str], *, disabled: bool = False) -> str | None:
     """Row of clickable frequently-asked-question buttons next to the chat input.
 
-    Returns the clicked prompt's text so the caller can feed it through the
-    same send path as a typed message, or None if nothing was clicked.
+    `disabled` blocks the buttons (e.g. app.py sets this when the student
+    hasn't supplied an API key yet) since clicking one sends a message
+    straight to the model, same as typing it. Returns the clicked prompt's
+    text so the caller can feed it through the same send path as a typed
+    message, or None if nothing was clicked (including while disabled).
     """
     if not prompts:
         return None
@@ -169,7 +172,9 @@ def render_faq_prompts(prompts: list[str]) -> str | None:
     clicked = None
     for col, prompt in zip(st.columns(len(prompts)), prompts):
         with col:
-            if st.button(prompt, key=f"faq_prompt_{prompt}", use_container_width=True):
+            if st.button(
+                prompt, key=f"faq_prompt_{prompt}", use_container_width=True, disabled=disabled
+            ):
                 clicked = prompt
     return clicked
 
@@ -210,6 +215,32 @@ def render_course_library(files: list[dict]) -> int | None:
     # Positional index into `files` matches `table`'s row order - only columns
     # are dropped/renamed above, rows are never filtered/reordered.
     return files[selected_rows[0]]["id"]
+
+
+def render_api_key_sidebar(provider: str) -> str | None:
+    """Sidebar box where the student enters their own provider API key.
+
+    Required, not optional: the app never falls back to its own configured
+    secret at runtime (config.settings.with_api_key_override always replaces,
+    never no-ops), so callers must gate every LLM-calling action - the chat
+    input, FAQ shortcuts, and the vision-transcription upload path in app.py -
+    on this returning a non-empty string. Bound directly to
+    st.session_state["user_api_key"] via `key=` (Streamlit's normal
+    widget-state pattern, e.g. upload_subject in app.py), so the value is also
+    readable straight from session_state on later reruns.
+    """
+    st.header("Your API key")
+    api_key = st.text_input(
+        f"{provider.title()} API key",
+        type="password",
+        key="user_api_key",
+        help=f"Required to chat. Runs on your own {provider.title()} key for "
+        "this session only - kept in this browser tab, never stored, "
+        "logged, or sent anywhere but the provider's API.",
+    )
+    if not api_key:
+        st.warning(f"🔑 Enter your {provider.title()} API key above to start chatting.")
+    return api_key or None
 
 
 def render_focused_file_badge(focused_file: dict | None) -> bool:

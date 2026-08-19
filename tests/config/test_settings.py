@@ -4,7 +4,14 @@ import pytest
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.huggingface import HuggingFaceModel
 
-from config.settings import SUPPORTED_SUBJECTS, Settings, format_subject_list, get_model, get_model_settings
+from config.settings import (
+    SUPPORTED_SUBJECTS,
+    Settings,
+    format_subject_list,
+    get_model,
+    get_model_settings,
+    with_api_key_override,
+)
 
 
 def _settings(**overrides) -> Settings:
@@ -54,3 +61,33 @@ def test_format_subject_list_uses_oxford_comma_and_final_and():
     assert format_subject_list(["math", "biology"]) == "math, and biology"
     assert format_subject_list(["math", "biology", "geography"]) == "math, biology, and geography"
     assert format_subject_list(["math"]) == "math"
+
+
+def test_with_api_key_override_substitutes_anthropic_key():
+    settings = _settings(llm_provider="anthropic", anthropic_api_key="sk-ant-builtin")
+
+    overridden = with_api_key_override(settings, "sk-ant-mine")
+
+    assert overridden.anthropic_api_key == "sk-ant-mine"
+    assert overridden.llm_provider == "anthropic"
+
+
+def test_with_api_key_override_substitutes_huggingface_token():
+    settings = _settings(llm_provider="huggingface", hf_token="hf_builtin")
+
+    overridden = with_api_key_override(settings, "hf_mine")
+
+    assert overridden.hf_token == "hf_mine"
+
+
+def test_with_api_key_override_clears_the_builtin_anthropic_key_when_no_user_key_given():
+    settings = _settings(llm_provider="anthropic", anthropic_api_key="sk-ant-builtin")
+
+    assert with_api_key_override(settings, None).anthropic_api_key is None
+    assert with_api_key_override(settings, "").anthropic_api_key is None
+
+
+def test_with_api_key_override_clears_the_builtin_hf_token_when_no_user_key_given():
+    settings = _settings(llm_provider="huggingface", hf_token="hf_builtin")
+
+    assert with_api_key_override(settings, None).hf_token is None

@@ -8,7 +8,7 @@ the same code works in tests and in scripts run outside Streamlit.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -77,6 +77,24 @@ def load_settings() -> Settings:
         or DEFAULT_ANTHROPIC_MODEL,
         log_level=(_get_secret("LOG_LEVEL", "INFO") or "INFO").upper(),
     )
+
+
+def with_api_key_override(settings: Settings, api_key: str | None) -> Settings:
+    """Return `settings` with the active provider's key replaced by `api_key`.
+
+    Always replaces - even with None/empty - rather than falling back to the
+    app's configured secret when `api_key` is falsy. Students must paste
+    their own key into the sidebar (ui.components.render_api_key_sidebar) to
+    use the chatbot; the app's built-in ANTHROPIC_API_KEY/HF_TOKEN secrets are
+    never used to serve model calls. Callers (app.py) must gate any
+    LLM-calling action on the user having supplied a key, since the resulting
+    Settings can carry a None key.
+    """
+    if settings.llm_provider == "anthropic":
+        return replace(settings, anthropic_api_key=api_key or None)
+    if settings.llm_provider == "huggingface":
+        return replace(settings, hf_token=api_key or None)
+    return settings
 
 
 def get_model(settings: Settings | None = None):

@@ -17,6 +17,26 @@ def test_app_boots_without_exceptions():
     assert not at.exception
 
 
+def test_chat_is_blocked_until_the_student_enters_an_api_key():
+    at = AppTest.from_file("src/app.py")
+    at.run(timeout=30)
+
+    assert at.chat_input[0].disabled
+    assert any("API key" in error.value for error in at.main.error)
+    assert all(button.disabled for button in at.main.button)  # FAQ prompt shortcuts
+    add_notes_button = next(b for b in at.sidebar.button if b.label == "Add to course notes")
+    assert add_notes_button.disabled
+
+
+def test_chat_unblocks_once_an_api_key_is_entered():
+    at = AppTest.from_file("src/app.py")
+    at.session_state["user_api_key"] = "sk-ant-test-key"
+    at.run(timeout=30)
+
+    assert not at.chat_input[0].disabled
+    assert len(at.main.error) == 0
+
+
 def test_teacher_upload_subject_picker_offers_every_supported_subject():
     at = AppTest.from_file("src/app.py")
     at.run(timeout=30)
