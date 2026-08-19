@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
+    "chromadb>=1.5.9",
     "logfire>=4.39.0",
     "pydantic-ai[huggingface]>=2.23.0",
     "pypdf>=6.14.2",

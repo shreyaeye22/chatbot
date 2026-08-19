@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS course_content (
     subject TEXT NOT NULL,
     topic TEXT NOT NULL,
     content TEXT NOT NULL,
-    source TEXT NOT NULL DEFAULT 'seed'
+    source TEXT NOT NULL DEFAULT 'seed',
+    owner TEXT NOT NULL DEFAULT 'Teacher'
 );
 
 CREATE TABLE IF NOT EXISTS question_log (
@@ -56,11 +57,24 @@ def get_connection(db_path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_owner_column(conn: sqlite3.Connection) -> None:
+    """Backfill course_content.owner for DBs created before this column existed.
+
+    No-ops if already present (fresh DBs get it straight from SCHEMA_SQL).
+    SQLite's ADD COLUMN ... DEFAULT backfills existing rows automatically, so
+    no per-row UPDATE is needed.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(course_content)")}
+    if "owner" not in columns:
+        conn.execute("ALTER TABLE course_content ADD COLUMN owner TEXT NOT NULL DEFAULT 'Teacher'")
+
+
 def init_db(db_path: str | Path) -> None:
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = get_connection(db_path)
     try:
         conn.executescript(SCHEMA_SQL)
+        _ensure_owner_column(conn)
         conn.commit()
     finally:
         conn.close()

@@ -1,7 +1,11 @@
 """Tools: search teacher-provided course notes/materials.
 
-Ranking happens in skills.explain_concept (deterministic, testable);
-this tool is just the SQLite lookup plus wiring the result through it.
+Semantic ranking happens in capabilities.retrieval.vector_store (a local ChromaDB
+index, deterministic given the embedding model, no LLM call); this tool just wires
+the result through it. No SQLite lookup here - the vector index's metadata already
+carries the full row, so a search never needs to touch course_content directly
+(SQLite stays the source of truth for what the index gets rebuilt from, not for
+answering a single query).
 """
 
 from __future__ import annotations
@@ -9,8 +13,7 @@ from __future__ import annotations
 from pydantic_ai import RunContext
 
 from agents.deps import AgentDeps
-from data.db import get_connection
-from skills.explain_concept import rank_content
+from capabilities.retrieval import vector_store
 
 
 def search_course_content(
@@ -20,18 +23,5 @@ def search_course_content(
     biology, geography, digital design) for content relevant to `topic_query`. Returns the
     best-matching notes, best first.
     """
-    conn = get_connection(ctx.deps.db_path)
-    try:
-        rows = [
-            dict(row)
-            for row in conn.execute(
-                "SELECT subject, topic, content, source FROM course_content WHERE subject = ?",
-                # Seed/stored subjects are lowercase; normalize so a differently-cased
-                # subject from an LLM tool call (e.g. "Geography") still matches.
-                (subject.strip().lower(),),
-            ).fetchall()
-        ]
-    finally:
-        conn.close()
-
-    return rank_content(rows, topic_query, top_n=3)
+    collection = vector_store.get_collection(ctx.deps.vector_index_path)
+    return vector_store.search(collection, subject=subject, query=topic_query, top_k=3)

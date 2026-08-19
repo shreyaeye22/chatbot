@@ -36,7 +36,11 @@ environment, and dependencies.
 No manual venv activation is required — `uv run` uses `.venv` automatically.
 
 On first run, `data/app.db` (SQLite, gitignored) is created and seeded from the placeholder
-homework/assessment/course-content data in `src/data/seed/`.
+homework/assessment/course-content data in `src/data/seed/`. `data/vector_index/` (also
+gitignored) is built the same way — a local ChromaDB index over `course_content`, used for
+semantic search of class notes (see [ARCHITECTURE.md](ARCHITECTURE.md)). The very first run
+also downloads a small (~90MB) local embedding model, cached on disk afterward — this needs
+network access once, but no API key and no per-query cost, since embedding runs locally.
 
 ## Running the test suite
 
@@ -45,9 +49,11 @@ uv run pytest
 ```
 
 Tests mirror `src/` 1:1 under `tests/`. Deterministic logic (date-range lookups, guardrail
-rules, memory/repeated-question detection, content ranking) is tested directly with no LLM
-call involved. Agent-level tests use pydantic-ai's `TestModel`/`FunctionModel` to verify
-routing and fallback behavior without hitting the network.
+rules, memory/repeated-question detection) is tested directly with no LLM call involved.
+Course-content search (`capabilities/retrieval/vector_store.py`) is tested against a real,
+local ChromaDB index too — no LLM call there either, but not instant on a machine's first run
+(pays the one-time embedding-model download noted above). Agent-level tests use pydantic-ai's
+`TestModel`/`FunctionModel` to verify routing and fallback behavior without hitting the network.
 
 ## Teacher tools
 
@@ -84,3 +90,13 @@ The chat input also accepts an attached photo or file (same formats as the teach
 Images are shown to the model directly (vision, Anthropic only); other documents are
 text-extracted and included as context for that question. Attachments aren't saved as
 permanent course content — they only apply to that one question.
+
+## Course files library
+
+To the right of the chat, a panel lists every piece of course content (teacher uploads and
+seed data alike) as a table of File / Subject / Owner — "Owner" is currently always "Teacher"
+since there's no student/teacher sign-up system yet. Clicking a row scopes the conversation to
+just that file's content, shown as an "Attached: ..." badge above the chat input, and stays
+attached across follow-up questions until you click Clear. With nothing selected (the default),
+questions still search across all course content as usual (semantic search, see
+[ARCHITECTURE.md](ARCHITECTURE.md)).

@@ -11,11 +11,13 @@ from typing import Any, MutableMapping
 
 CHAT_HISTORY_KEY = "chat_history"
 MODEL_MESSAGE_HISTORY_KEY = "model_message_history"
+FOCUSED_CONTENT_ID_KEY = "focused_content_id"
 
 
 def init_session_state(session_state: MutableMapping[str, Any]) -> None:
     session_state.setdefault(CHAT_HISTORY_KEY, [])
     session_state.setdefault(MODEL_MESSAGE_HISTORY_KEY, [])
+    session_state.setdefault(FOCUSED_CONTENT_ID_KEY, None)
 
 
 def get_chat_history(session_state: MutableMapping[str, Any]) -> list[dict]:
@@ -44,3 +46,12 @@ def get_model_message_history(session_state: MutableMapping[str, Any]) -> list:
 
 def set_model_message_history(session_state: MutableMapping[str, Any], messages: list) -> None:
     session_state[MODEL_MESSAGE_HISTORY_KEY] = messages
+
+
+def get_focused_content_id(session_state: MutableMapping[str, Any]) -> int | None:
+    """The course_content id a student has attached from the library panel, if any."""
+    return session_state.get(FOCUSED_CONTENT_ID_KEY)
+
+
+def set_focused_content_id(session_state: MutableMapping[str, Any], content_id: int | None) -> None:
+    session_state[FOCUSED_CONTENT_ID_KEY] = content_id

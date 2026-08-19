@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, Iterator
 
+import pandas as pd
 import streamlit as st
 from pydantic_ai import BinaryContent, UserContent
 
@@ -19,7 +20,7 @@ IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"]
 TOOL_SKILLS = {
     "get_upcoming_deadlines": "skills.lookup_deadlines",
     "get_next_deadline": "skills.lookup_deadlines",
-    "search_course_content": "skills.explain_concept",
+    "search_course_content": "capabilities.retrieval.vector_store",
     "check_if_repeated_question": "capabilities.memory.student_memory",
 }
 
@@ -56,28 +57,53 @@ def parse_chat_input(user_input: Any) -> tuple[str, Any | None]:
     return user_input.text, (files[0] if files else None)
 
 
-def build_message_content(text: str, uploaded_file: Any | None) -> str | list[UserContent]:
-    """Turn a chat message + optional attachment into agent-ready input.
+def format_attached_content(name: str, text: str) -> str:
+    """Shared "[Attached file 'name':]\ntext" formatting for a document's text,
+    whether it's an ad-hoc chat_input attachment or a library-selected course file.
+    """
+    return f"[Attached file '{name}':]\n{text}"
+
+
+def build_message_content(
+    text: str,
+    uploaded_file: Any | None,
+    focused_document: dict | None = None,
+) -> str | list[UserContent]:
+    """Turn a chat message + optional attachment(s) into agent-ready input.
 
     Images are passed through natively as multimodal content so the model can
     actually see them (vision). Other documents are text-extracted
     (data.document_ingest, same parsers as the teacher-upload path) and folded
     into the prompt as context, since there's no benefit to sending a Word doc
     or PDF as raw bytes when we can already read it deterministically.
+
+    `focused_document`, if given, is a course_content row dict (needs
+    `filename` and `content` keys, as returned by
+    data.document_ingest.get_course_content_by_id) - the student's
+    persistently-attached library selection. Its text folds in the same way
+    as `uploaded_file`'s, and composes with an ad-hoc `uploaded_file`
+    attachment if both are present on the same turn.
     """
+    text_parts = [text] if text else []
+    if focused_document is not None:
+        text_parts.append(
+            format_attached_content(focused_document["filename"], focused_document["content"])
+        )
+
     if uploaded_file is None:
-        return text
+        return "\n\n".join(text_parts) if text_parts else ""
 
     if uploaded_file.type and uploaded_file.type.startswith("image/"):
         parts: list[UserContent] = []
-        if text:
-            parts.append(text)
+        combined_text = "\n\n".join(text_parts)
+        if combined_text:
+            parts.append(combined_text)
         parts.append(BinaryContent(data=uploaded_file.getvalue(), media_type=uploaded_file.type))
         return parts
 
     extracted = extract_text(uploaded_file, uploaded_file.name)
-    label = f"[Attached file '{uploaded_file.name}':]\n{extracted}"
-    return f"{text}\n\n{label}" if text else label
+    text_parts.append(format_attached_content(uploaded_file.name, extracted))
+    return "\n\n".join(text_parts)
 
 
 def render_chat_history(chat_history: list[dict]) -> None:
@@ -146,3 +172,53 @@ def render_faq_prompts(prompts: list[str]) -> str | None:
             if st.button(prompt, key=f"faq_prompt_{prompt}", use_container_width=True):
                 clicked = prompt
     return clicked
+
+
+def render_course_library(files: list[dict]) -> int | None:
+    """Right-side panel: a File/Subject/Owner table of every course_content row,
+    click-to-select. `files` is data.document_ingest.list_course_content's return
+    value. Returns the clicked row's course_content id this run, or None if
+    nothing was clicked (caller owns persisting the choice into session_state -
+    this function only reports the event, same division of responsibility as
+    render_faq_prompts).
+
+    Known, accepted limitation: the table's own row highlight resets on any
+    rerun not triggered by clicking this same table (e.g. after sending a chat
+    message) even though the underlying selection stays correctly tracked in
+    session_state and the badge stays accurate - cosmetic only, not worth
+    fighting Streamlit over.
+    """
+    st.subheader("Course files")
+    if not files:
+        st.caption("No course files yet.")
+        return None
+
+    table = pd.DataFrame(files)[["filename", "subject", "owner"]].rename(
+        columns={"filename": "File", "subject": "Subject", "owner": "Owner"}
+    )
+    event = st.dataframe(
+        table,
+        hide_index=True,
+        width="stretch",
+        on_select="rerun",
+        selection_mode="single-row",
+        key="course_library_table",
+    )
+    selected_rows = event.selection.rows if event is not None else []
+    if not selected_rows:
+        return None
+    # Positional index into `files` matches `table`'s row order - only columns
+    # are dropped/renamed above, rows are never filtered/reordered.
+    return files[selected_rows[0]]["id"]
+
+
+def render_focused_file_badge(focused_file: dict | None) -> bool:
+    """Badge + Clear button for a persistently-attached library file, shown
+    above the chat input. Returns True if Clear was clicked this run."""
+    if focused_file is None:
+        return False
+    badge_col, clear_col = st.columns([5, 1])
+    with badge_col:
+        st.info(f"📎 Attached: **{focused_file['filename']}** ({focused_file['subject']})")
+    with clear_col:
+        return st.button("Clear", key="clear_focused_file")

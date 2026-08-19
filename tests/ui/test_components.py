@@ -98,6 +98,49 @@ def test_build_message_content_extracts_text_for_a_document_attachment():
     assert "Newton's second law: F = m * a" in content
 
 
+def test_build_message_content_folds_in_focused_document_when_no_attachment():
+    focused = {"filename": "algebra.txt", "subject": "math", "owner": "Teacher", "content": "solve for x"}
+
+    content = build_message_content("what does this mean?", None, focused)
+
+    assert "what does this mean?" in content
+    assert "algebra.txt" in content
+    assert "solve for x" in content
+
+
+def test_build_message_content_folds_in_focused_document_with_no_typed_text():
+    focused = {"filename": "algebra.txt", "subject": "math", "owner": "Teacher", "content": "solve for x"}
+
+    content = build_message_content("", None, focused)
+
+    assert content.startswith("[Attached file 'algebra.txt':]")
+
+
+def test_build_message_content_composes_focused_document_and_ad_hoc_document_attachment():
+    focused = {"filename": "algebra.txt", "subject": "math", "owner": "Teacher", "content": "solve for x"}
+    fake_file = FakeUploadedFile("extra homework notes".encode("utf-8"), "hw.txt", "text/plain")
+
+    content = build_message_content("compare these", fake_file, focused)
+
+    assert "compare these" in content
+    assert "algebra.txt" in content
+    assert "solve for x" in content
+    assert "hw.txt" in content
+    assert "extra homework notes" in content
+
+
+def test_build_message_content_composes_focused_document_and_image_attachment():
+    focused = {"filename": "algebra.txt", "subject": "math", "owner": "Teacher", "content": "solve for x"}
+    fake_file = FakeUploadedFile(b"fake-bytes", "worksheet.png", "image/png")
+
+    content = build_message_content("what's this?", fake_file, focused)
+
+    assert "what's this?" in content[0]
+    assert "algebra.txt" in content[0]
+    assert "solve for x" in content[0]
+    assert isinstance(content[1], BinaryContent)
+
+
 def test_render_tool_trace_lists_each_tool_call_and_its_backing_skill():
     status = _StubStatus()
 

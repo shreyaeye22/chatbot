@@ -7,6 +7,7 @@ from docx import Document
 from pptx import Presentation
 from reportlab.pdfgen import canvas
 
+from capabilities.retrieval import vector_store
 from data.db import get_connection, init_db
 from data.document_ingest import (
     extract_text,
@@ -14,7 +15,9 @@ from data.document_ingest import (
     extract_text_from_pdf,
     extract_text_from_plain_text,
     extract_text_from_pptx,
+    get_course_content_by_id,
     ingest_document,
+    list_course_content,
     store_course_content,
 )
 
@@ -26,6 +29,11 @@ def db_conn(tmp_path):
     conn = get_connection(db_path)
     yield conn
     conn.close()
+
+
+@pytest.fixture
+def vector_collection(tmp_path):
+    return vector_store.get_collection(str(tmp_path / "vector_index"))
 
 
 def test_extract_text_from_docx(tmp_path):
@@ -100,9 +108,14 @@ def test_extract_text_rejects_unsupported_extension():
         extract_text("fake-file-handle", "notes.xlsx")
 
 
-def test_store_course_content_inserts_a_row(db_conn):
+def test_store_course_content_inserts_a_row(db_conn, vector_collection):
     row_id = store_course_content(
-        db_conn, subject="math", topic="algebra", content="some notes", source_name="upload.txt"
+        db_conn,
+        subject="math",
+        topic="algebra",
+        content="some notes",
+        source_name="upload.txt",
+        collection=vector_collection,
     )
 
     row = db_conn.execute(
@@ -115,20 +128,127 @@ def test_store_course_content_inserts_a_row(db_conn):
     assert row["source"] == "upload.txt"
 
 
-def test_store_course_content_rejects_empty_content(db_conn):
+def test_store_course_content_also_indexes_the_row_for_search(db_conn, vector_collection):
+    store_course_content(
+        db_conn,
+        subject="biology",
+        topic="photosynthesis",
+        content="plants convert light energy into glucose and oxygen",
+        source_name="upload.txt",
+        collection=vector_collection,
+    )
+
+    results = vector_store.search(vector_collection, subject="biology", query="how do plants make glucose")
+
+    assert results
+    assert results[0]["topic"] == "photosynthesis"
+
+
+def test_store_course_content_rejects_empty_content(db_conn, vector_collection):
     with pytest.raises(ValueError):
         store_course_content(
-            db_conn, subject="math", topic="algebra", content="", source_name="empty.txt"
+            db_conn,
+            subject="math",
+            topic="algebra",
+            content="",
+            source_name="empty.txt",
+            collection=vector_collection,
         )
 
 
-def test_ingest_document_end_to_end(tmp_path, db_conn):
+def test_ingest_document_end_to_end(tmp_path, db_conn, vector_collection):
     path = tmp_path / "notes.txt"
     path.write_text("The mitochondria is the powerhouse of the cell.", encoding="utf-8")
 
     row_id = ingest_document(
-        db_conn, file=str(path), subject="biology", topic="cells", source_name="notes.txt"
+        db_conn,
+        file=str(path),
+        subject="biology",
+        topic="cells",
+        source_name="notes.txt",
+        collection=vector_collection,
     )
 
     row = db_conn.execute("SELECT content FROM course_content WHERE id = ?", (row_id,)).fetchone()
     assert "mitochondria" in row["content"]
+
+
+def test_list_course_content_returns_filename_subject_owner(db_conn, vector_collection):
+    store_course_content(
+        db_conn,
+        subject="math",
+        topic="algebra",
+        content="notes",
+        source_name="algebra.txt",
+        collection=vector_collection,
+    )
+
+    files = list_course_content(db_conn)
+
+    assert len(files) == 1
+    assert set(files[0].keys()) == {"id", "filename", "subject", "owner"}
+    assert files[0]["filename"] == "algebra.txt"
+    assert files[0]["subject"] == "math"
+    assert files[0]["owner"] == "Teacher"
+
+
+def test_list_course_content_orders_by_subject_then_filename(db_conn, vector_collection):
+    store_course_content(
+        db_conn,
+        subject="physics",
+        topic="motion",
+        content="notes",
+        source_name="b.txt",
+        collection=vector_collection,
+    )
+    store_course_content(
+        db_conn,
+        subject="biology",
+        topic="cells",
+        content="notes",
+        source_name="a.txt",
+        collection=vector_collection,
+    )
+    store_course_content(
+        db_conn,
+        subject="biology",
+        topic="genetics",
+        content="notes",
+        source_name="c.txt",
+        collection=vector_collection,
+    )
+
+    files = list_course_content(db_conn)
+
+    assert [(f["subject"], f["filename"]) for f in files] == [
+        ("biology", "a.txt"),
+        ("biology", "c.txt"),
+        ("physics", "b.txt"),
+    ]
+
+
+def test_list_course_content_empty_db_returns_empty_list(db_conn):
+    assert list_course_content(db_conn) == []
+
+
+def test_get_course_content_by_id_returns_full_row(db_conn, vector_collection):
+    row_id = store_course_content(
+        db_conn,
+        subject="chemistry",
+        topic="atoms",
+        content="protons neutrons electrons",
+        source_name="atoms.txt",
+        collection=vector_collection,
+    )
+
+    row = get_course_content_by_id(db_conn, row_id)
+
+    assert row["id"] == row_id
+    assert row["filename"] == "atoms.txt"
+    assert row["subject"] == "chemistry"
+    assert row["owner"] == "Teacher"
+    assert row["content"] == "protons neutrons electrons"
+
+
+def test_get_course_content_by_id_returns_none_for_missing_id(db_conn):
+    assert get_course_content_by_id(db_conn, 999) is None

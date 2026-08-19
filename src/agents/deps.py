@@ -14,3 +14,4 @@ from dataclasses import dataclass
 class AgentDeps:
     db_path: str
     student_id: str
+    vector_index_path: str

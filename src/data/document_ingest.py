@@ -8,6 +8,12 @@ their content isn't a deterministic operation - see app.py's upload handler, whi
 This is the "how does real ManageBac/Teams content get in" answer for a no-budget
 course project: a teacher drops a file in via the Streamlit sidebar instead of a
 live platform integration.
+
+`store_course_content` is also the single choke point both upload paths (text here,
+images in app.py) funnel through, so it's where the row gets indexed into the vector
+search store (capabilities/retrieval/vector_store.py) right after the SQLite insert -
+one hook keeps both upload paths in sync rather than duplicating the call at each
+call site.
 """
 
 from __future__ import annotations
@@ -19,6 +25,9 @@ from typing import BinaryIO
 from docx import Document
 from pptx import Presentation
 from pypdf import PdfReader
+
+from capabilities.retrieval import vector_store
+from capabilities.retrieval.vector_store import Collection
 
 SUPPORTED_DOCUMENT_EXTENSIONS = {".docx", ".pdf", ".pptx", ".txt", ".md"}
 
@@ -84,9 +93,17 @@ def extract_text(file: BinaryIO | str, filename: str) -> str:
 
 
 def store_course_content(
-    conn: sqlite3.Connection, *, subject: str, topic: str, content: str, source_name: str
+    conn: sqlite3.Connection,
+    *,
+    subject: str,
+    topic: str,
+    content: str,
+    source_name: str,
+    collection: Collection,
 ) -> int:
-    """Insert already-extracted text as a course_content row. Returns the new row's id."""
+    """Insert already-extracted text as a course_content row, and index it into the
+    vector search store so it's immediately searchable. Returns the new row's id.
+    """
     if not content:
         raise ValueError(f"No content to store for {source_name!r}")
 
@@ -95,7 +112,12 @@ def store_course_content(
         (subject, topic, content, source_name),
     )
     conn.commit()
-    return cursor.lastrowid
+    row_id = cursor.lastrowid
+    vector_store.index_row(
+        collection,
+        {"id": row_id, "subject": subject, "topic": topic, "content": content, "source": source_name},
+    )
+    return row_id
 
 
 def ingest_document(
@@ -105,11 +127,42 @@ def ingest_document(
     subject: str,
     topic: str,
     source_name: str,
+    collection: Collection,
 ) -> int:
     """Parse an uploaded document (.docx/.pdf/.pptx/.txt/.md) and store it as a
     course_content row. Returns the new row's id.
     """
     text = extract_text(file, source_name)
     return store_course_content(
-        conn, subject=subject, topic=topic, content=text, source_name=source_name
+        conn,
+        subject=subject,
+        topic=topic,
+        content=text,
+        source_name=source_name,
+        collection=collection,
     )
+
+
+def list_course_content(conn: sqlite3.Connection) -> list[dict]:
+    """id, filename, subject, owner for every row - powers the library panel.
+
+    `source` is aliased to `filename` (the UI-facing name for "uploaded file
+    name, or 'seed'"). No `content` body - the panel only lists files.
+    """
+    rows = conn.execute(
+        "SELECT id, source AS filename, subject, owner "
+        "FROM course_content ORDER BY subject, source"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_course_content_by_id(conn: sqlite3.Connection, content_id: int) -> dict | None:
+    """Full row (id, filename, subject, owner, content) for folding into a
+    prompt, or None if content_id doesn't exist (defensive - a stale
+    session_state id)."""
+    row = conn.execute(
+        "SELECT id, source AS filename, subject, owner, content "
+        "FROM course_content WHERE id = ?",
+        (content_id,),
+    ).fetchone()
+    return dict(row) if row else None

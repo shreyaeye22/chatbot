@@ -9,7 +9,9 @@ from toolsets.memory_tools import check_if_repeated_question
 
 
 def _fake_ctx(db_path: str, student_id: str = "demo_student"):
-    return SimpleNamespace(deps=AgentDeps(db_path=db_path, student_id=student_id))
+    return SimpleNamespace(
+        deps=AgentDeps(db_path=db_path, student_id=student_id, vector_index_path="unused")
+    )
 
 
 def test_check_if_repeated_question(tmp_path):

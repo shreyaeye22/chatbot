@@ -7,6 +7,7 @@ from streamlit.testing.v1 import AppTest
 from capabilities.memory.student_memory import record_question
 from config.settings import SEED_DIR, SUPPORTED_SUBJECTS
 from data.db import ensure_db, get_connection
+from data.document_ingest import list_course_content
 
 
 def test_app_boots_without_exceptions():
@@ -48,3 +49,66 @@ def test_faq_prompts_appear_next_to_chat_input_not_in_sidebar(tmp_path: Path, mo
     sidebar_button_labels = [button.label for button in at.sidebar.button]
     assert faq_question in main_button_labels
     assert faq_question not in sidebar_button_labels
+
+
+def test_course_library_panel_renders_in_main_body_with_expected_columns(
+    tmp_path: Path, monkeypatch
+):
+    db_path = tmp_path / "library_test.db"
+    ensure_db(db_path, SEED_DIR)
+    monkeypatch.setattr("config.settings.DB_PATH", db_path)
+
+    at = AppTest.from_file("src/app.py")
+    at.run(timeout=30)
+
+    assert len(at.main.dataframe) == 1
+    assert len(at.sidebar.dataframe) == 0
+    assert list(at.main.dataframe[0].value.columns) == ["File", "Subject", "Owner"]
+
+
+def test_selecting_a_library_file_persists_across_a_rerun(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "library_test.db"
+    ensure_db(db_path, SEED_DIR)
+    conn = get_connection(db_path)
+    try:
+        focused_id = list_course_content(conn)[0]["id"]
+        focused_filename = list_course_content(conn)[0]["filename"]
+    finally:
+        conn.close()
+    monkeypatch.setattr("config.settings.DB_PATH", db_path)
+
+    # streamlit.testing.v1's Dataframe element is a plain read-only Element (no
+    # click simulation available), so drive session_state directly to test the
+    # *persistence* contract rather than the click itself.
+    at = AppTest.from_file("src/app.py")
+    at.session_state["focused_content_id"] = focused_id
+    at.run(timeout=30)
+
+    assert len(at.main.info) == 1
+    assert focused_filename in at.main.info[0].value
+
+    at.run(timeout=30)  # an unrelated rerun shouldn't drop the selection
+
+    assert len(at.main.info) == 1
+    assert focused_filename in at.main.info[0].value
+
+
+def test_clearing_the_focused_file_removes_the_badge(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "library_test.db"
+    ensure_db(db_path, SEED_DIR)
+    conn = get_connection(db_path)
+    try:
+        focused_id = list_course_content(conn)[0]["id"]
+    finally:
+        conn.close()
+    monkeypatch.setattr("config.settings.DB_PATH", db_path)
+
+    at = AppTest.from_file("src/app.py")
+    at.session_state["focused_content_id"] = focused_id
+    at.run(timeout=30)
+    assert len(at.main.info) == 1
+
+    at.button(key="clear_focused_file").click().run(timeout=30)
+
+    assert len(at.main.info) == 0
+    assert at.session_state["focused_content_id"] is None

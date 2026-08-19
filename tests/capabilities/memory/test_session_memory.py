@@ -3,8 +3,10 @@ from __future__ import annotations
 from capabilities.memory.session_memory import (
     add_chat_message,
     get_chat_history,
+    get_focused_content_id,
     get_model_message_history,
     init_session_state,
+    set_focused_content_id,
     set_model_message_history,
 )
 
@@ -60,3 +62,26 @@ def test_init_session_state_does_not_clobber_existing_history():
     init_session_state(session_state)
 
     assert get_chat_history(session_state) == [{"role": "user", "content": "already here"}]
+
+
+def test_focused_content_id_round_trips_through_session_state():
+    session_state: dict = {}
+    init_session_state(session_state)
+
+    assert get_focused_content_id(session_state) is None
+
+    set_focused_content_id(session_state, 3)
+
+    assert get_focused_content_id(session_state) == 3
+
+    set_focused_content_id(session_state, None)
+
+    assert get_focused_content_id(session_state) is None
+
+
+def test_init_session_state_does_not_clobber_existing_focused_content_id():
+    session_state = {"focused_content_id": 7}
+
+    init_session_state(session_state)
+
+    assert get_focused_content_id(session_state) == 7

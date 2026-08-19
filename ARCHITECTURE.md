@@ -13,6 +13,7 @@ Streamlit UI (src/app.py)
             -> toolsets/*  (thin wrappers)
                  -> skills/*  (deterministic business logic)
                       -> data/db.py (SQLite)
+                 -> capabilities/retrieval/vector_store.py  (concept agent only - see below)
        -> capabilities/guardrails (output check, concept answers only)
        -> capabilities/memory (log the question's text; usage/cost logged via logging)
   <- AgentAnswer(text, route, ...)
@@ -21,6 +22,12 @@ Streamlit UI renders the reply (simulated stream) and updates session memory
 
 Each turn does at most two LLM calls: one routing call (structured output) and one specialist
 call. Off-topic messages short-circuit before any LLM call at all.
+
+**One exception to the `toolsets -> skills -> data/db.py` line:** `concept_agent`'s
+`search_course_content` tool goes `toolsets/content_tools.py -> capabilities/retrieval/vector_store.py`
+(a local ChromaDB semantic-search index) instead, bypassing `skills/`/`data/db.py` entirely at
+query time - see "Course content search" below. `data/document_ingest.py` (the write side, teacher
+uploads) calls into the same `vector_store.py` module to keep that index in sync.
 
 ## Why the split is this way
 
@@ -32,14 +39,15 @@ failed routing decision still produces a reasonable, honest response instead of 
 hallucinated answer.
 
 **capabilities/ vs toolsets/ vs skills/:**
-- `skills/` holds the actual deterministic logic (date-range filtering, keyword ranking,
-  instruction extraction, digest building) — plain functions, fully unit-testable with no
-  agent or LLM involved.
+- `skills/` holds the actual deterministic logic (date-range filtering, instruction extraction,
+  digest building) — plain functions, fully unit-testable with no agent or LLM involved.
 - `toolsets/` are thin `@tool`-shaped wrappers (`RunContext[AgentDeps]` in, plain value out)
   that open a short-lived DB connection and delegate to `skills/`/`capabilities/`. This is
   the layer actually bound to an `Agent(tools=[...])`.
 - `capabilities/` holds cross-cutting concerns that aren't "one task" (memory, guardrails,
-  observability) and are shared by multiple agents/toolsets.
+  observability, retrieval) and are shared by multiple agents/toolsets. `retrieval/` fits here
+  rather than in `skills/` because it's used from both the read side (`content_tools`) and the
+  write side (`data/document_ingest.py`, `app.py`'s upload handler) and by boot-time sync.
 
 **Guardrails are not LLM tools.** `toolsets/guardrail_tools.py` exists as a thin wrapper for
 folder-convention consistency, but `agents/orchestrator.py` calls it directly, not as an
@@ -143,6 +151,21 @@ with its route and whether it was answered — powers the teacher digest via
 "Upload course material" panel (`data/document_ingest.py`) lets a teacher drop in a file, which
 is parsed into a `course_content` row for the concept agent to draw on.
 
+**Course content search:** `data/vector_index/` (a local ChromaDB index, gitignored) is a
+*derived, not authoritative* projection of `course_content` — SQLite stays the single source of
+truth. `capabilities/retrieval/vector_store.py`'s `ensure_index()` runs at boot (alongside
+`ensure_db()`) and rebuilds the whole index from `course_content` whenever its row count doesn't
+match SQLite's; `index_row()` keeps it incrementally in sync on every new upload (called from
+`store_course_content()`, the single choke point both the text and image upload paths funnel
+through). This "always rebuildable, never trusted on its own" design is deliberate: the intended
+deploy target (Streamlit Community Cloud's free tier) has an ephemeral filesystem, so a redeploy
+or sleep/wake cycle can wipe `data/vector_index/` (and `data/app.db`) at any time — the next boot
+just reconstructs it from the JSON seed data plus whatever's in SQLite, the same self-healing
+relationship `data/app.db` already has to `src/data/seed/*.json`. Embedding is entirely local (a
+bundled ONNX MiniLM model via `onnxruntime`, no PyTorch, no external API) — chosen specifically
+to fit that free tier's tight CPU/RAM ceiling, at the cost of a one-time ~90MB model download
+on a machine's first use.
+
 ## Documents and images
 
 Two separate paths, deliberately not unified, since only one of them needs an LLM call:
@@ -173,7 +196,11 @@ real class roster. Output guardrail flags (`too_direct`) are computed but not cu
 persisted or surfaced in the UI — see `agents/orchestrator.AgentAnswer.flagged` as the existing
 extension point. Chat-attached images/files aren't persisted in session history — they apply to
 the turn they're sent on; re-rendering `st.session_state`'s chat history after a rerun shows the
-text only (see `capabilities/memory/session_memory.py`).
+text only (see `capabilities/memory/session_memory.py`). On the deploy target's ephemeral
+filesystem, the first request after a sleep/redeploy can pay SQLite reseeding, an embedding-model
+load (and possibly a re-download if the on-disk cache was also wiped), and re-embedding the full
+`course_content` table, all inside one `bootstrap()` call — that first interaction may be
+noticeably slower than the ones that follow it.
 
 ## Memory layers
 

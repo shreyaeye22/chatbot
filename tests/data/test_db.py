@@ -63,3 +63,50 @@ def test_every_supported_subject_has_seed_course_content(seeded_conn: sqlite3.Co
     }
 
     assert set(SUPPORTED_SUBJECTS) <= seeded_subjects
+
+
+def test_seeded_course_content_rows_default_to_teacher_owner(seeded_conn: sqlite3.Connection):
+    owners = {row["owner"] for row in seeded_conn.execute("SELECT DISTINCT owner FROM course_content")}
+
+    assert owners == {"Teacher"}
+
+
+def test_init_db_migrates_existing_course_content_table_to_add_owner_column(tmp_path):
+    db_path = tmp_path / "legacy.db"
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE course_content ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL, topic TEXT NOT NULL, "
+            "content TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'seed')"
+        )
+        conn.execute(
+            "INSERT INTO course_content (subject, topic, content, source) VALUES (?, ?, ?, ?)",
+            ("math", "algebra", "notes", "legacy.txt"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    init_db(db_path)  # should not raise, and should backfill the new column
+
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute("SELECT owner FROM course_content WHERE source = 'legacy.txt'").fetchone()
+    finally:
+        conn.close()
+    assert row["owner"] == "Teacher"
+
+
+def test_init_db_owner_migration_is_idempotent(tmp_path):
+    db_path = tmp_path / "app.db"
+
+    init_db(db_path)
+    init_db(db_path)  # second call must not raise (e.g. duplicate ALTER TABLE)
+
+    conn = get_connection(db_path)
+    try:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(course_content)")}
+    finally:
+        conn.close()
+    assert "owner" in columns

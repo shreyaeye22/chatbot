@@ -14,6 +14,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = REPO_ROOT / "data" / "app.db"
 SEED_DIR = REPO_ROOT / "src" / "data" / "seed"
+VECTOR_INDEX_PATH = REPO_ROOT / "data" / "vector_index"
 
 DEFAULT_HF_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"

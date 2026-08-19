@@ -9,7 +9,9 @@ from toolsets.schedule_tools import get_next_deadline, get_upcoming_deadlines
 
 
 def _fake_ctx(db_path: str):
-    return SimpleNamespace(deps=AgentDeps(db_path=db_path, student_id="demo_student"))
+    return SimpleNamespace(
+        deps=AgentDeps(db_path=db_path, student_id="demo_student", vector_index_path="unused")
+    )
 
 
 def _empty_db_path(tmp_path) -> str:

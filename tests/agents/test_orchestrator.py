@@ -55,8 +55,8 @@ def _always_raise(messages: list, info: AgentInfo) -> m.ModelResponse:
     raise RuntimeError("simulated model failure")
 
 
-def test_off_topic_short_circuits_without_calling_the_model(seeded_db_path):
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+def test_off_topic_short_circuits_without_calling_the_model(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     poison_model = FunctionModel(_always_raise)
 
     answer = route_and_answer("What's your favorite movie?", deps, model=poison_model)
@@ -70,8 +70,8 @@ def test_off_topic_short_circuits_without_calling_the_model(seeded_db_path):
     assert row["route"] == "off_topic"
 
 
-def test_routes_to_the_scripted_specialist_and_logs_it(seeded_db_path):
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+def test_routes_to_the_scripted_specialist_and_logs_it(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     model = _scripted_model("concept", "Think about F = m * a. What happens if mass doubles?")
 
     answer = route_and_answer("why does newton's second law work", deps, model=model)
@@ -86,8 +86,8 @@ def test_routes_to_the_scripted_specialist_and_logs_it(seeded_db_path):
     assert row["answered"] == 1
 
 
-def test_falls_back_to_escalation_when_the_model_fails(seeded_db_path):
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+def test_falls_back_to_escalation_when_the_model_fails(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     poison_model = FunctionModel(_always_raise)
 
     answer = route_and_answer("when is my math homework due", deps, model=poison_model)
@@ -104,10 +104,10 @@ def test_falls_back_to_escalation_when_the_model_fails(seeded_db_path):
     assert row["answered"] == 0
 
 
-def test_run_agent_safely_returns_error_instead_of_raising(seeded_db_path):
+def test_run_agent_safely_returns_error_instead_of_raising(seeded_db_path, vector_index_path):
     from agents.logistics_agent import logistics_agent
 
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     poison_model = FunctionModel(_always_raise)
 
     output, new_messages, usage, error = _run_agent_safely(
@@ -134,8 +134,8 @@ def test_has_attachment_detects_non_text_parts():
     assert _has_attachment("plain string") is False
 
 
-def test_attachment_bypasses_off_topic_check_even_with_an_unrelated_caption(seeded_db_path):
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+def test_attachment_bypasses_off_topic_check_even_with_an_unrelated_caption(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     model = _scripted_model("concept", "That's a population pyramid - here's a hint...")
     image = BinaryContent(data=b"fake-worksheet-photo", media_type="image/png")
 
@@ -146,8 +146,8 @@ def test_attachment_bypasses_off_topic_check_even_with_an_unrelated_caption(seed
     assert answer.text == "That's a population pyramid - here's a hint..."
 
 
-def test_image_only_message_logs_a_placeholder_instead_of_crashing(seeded_db_path):
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+def test_image_only_message_logs_a_placeholder_instead_of_crashing(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     model = _scripted_model("concept", "Here's what I see in your photo...")
     image = BinaryContent(data=b"fake-worksheet-photo", media_type="image/png")
 
@@ -161,8 +161,8 @@ def test_image_only_message_logs_a_placeholder_instead_of_crashing(seeded_db_pat
     assert row["question"] == "[attached file]"
 
 
-def test_tool_calls_made_by_the_specialist_are_captured(seeded_db_path):
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+def test_tool_calls_made_by_the_specialist_are_captured(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     model = _scripted_tool_call_model("logistics", "get_today", "Nothing due today.")
 
     answer = route_and_answer("what's due today", deps, model=model)
@@ -171,8 +171,8 @@ def test_tool_calls_made_by_the_specialist_are_captured(seeded_db_path):
     assert answer.tool_calls == [{"tool": "get_today", "args": {}}]
 
 
-def test_tool_calls_are_empty_when_the_specialist_answers_directly(seeded_db_path):
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+def test_tool_calls_are_empty_when_the_specialist_answers_directly(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
     model = _scripted_model("concept", "Think about F = m * a.")
 
     answer = route_and_answer("why does newton's second law work", deps, model=model)
@@ -180,10 +180,10 @@ def test_tool_calls_are_empty_when_the_specialist_answers_directly(seeded_db_pat
     assert answer.tool_calls == []
 
 
-def test_run_agent_safely_returns_usage_on_success(seeded_db_path):
+def test_run_agent_safely_returns_usage_on_success(seeded_db_path, vector_index_path):
     from agents.logistics_agent import logistics_agent
 
-    deps = AgentDeps(db_path=seeded_db_path, student_id="alice")
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
 
     def _reply(messages: list, info: AgentInfo) -> m.ModelResponse:
         return m.ModelResponse(parts=[m.TextPart(content="Your homework is due Friday.")])
