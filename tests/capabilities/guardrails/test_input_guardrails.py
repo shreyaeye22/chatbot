@@ -36,6 +36,28 @@ def test_unrelated_message_is_off_topic():
     assert result.off_topic is True
 
 
+@pytest.mark.parametrize(
+    "message",
+    ["Hi", "hi!", "Hello", "hey", "Hi there", "Good morning", "Hey guys", "  hello  "],
+)
+def test_greeting_is_flagged_and_not_off_topic(message):
+    result = check_input(message)
+    assert result.is_greeting is True
+    assert result.off_topic is False
+
+
+def test_message_that_merely_contains_a_greeting_word_is_not_flagged_as_greeting():
+    result = check_input("Can you explain the history of the French Revolution?")
+    assert result.is_greeting is False
+    assert result.off_topic is False
+
+
+def test_greeting_plus_a_real_question_is_not_flagged_as_greeting_only():
+    result = check_input("Hi, can you help me understand photosynthesis?")
+    assert result.is_greeting is False
+    assert result.off_topic is False
+
+
 def test_direct_answer_request_is_flagged():
     result = check_input("Just give me the answer to question 4")
     assert result.wants_direct_answer is True

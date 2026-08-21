@@ -10,7 +10,7 @@ from config.settings import (
     format_subject_list,
     get_model,
     get_model_settings,
-    with_api_key_override,
+    with_anthropic_upgrade,
 )
 
 
@@ -63,31 +63,29 @@ def test_format_subject_list_uses_oxford_comma_and_final_and():
     assert format_subject_list(["math"]) == "math"
 
 
-def test_with_api_key_override_substitutes_anthropic_key():
-    settings = _settings(llm_provider="anthropic", anthropic_api_key="sk-ant-builtin")
-
-    overridden = with_api_key_override(settings, "sk-ant-mine")
-
-    assert overridden.anthropic_api_key == "sk-ant-mine"
-    assert overridden.llm_provider == "anthropic"
-
-
-def test_with_api_key_override_substitutes_huggingface_token():
+def test_with_anthropic_upgrade_switches_to_anthropic_with_the_supplied_key():
     settings = _settings(llm_provider="huggingface", hf_token="hf_builtin")
 
-    overridden = with_api_key_override(settings, "hf_mine")
+    upgraded = with_anthropic_upgrade(settings, "sk-ant-mine")
 
-    assert overridden.hf_token == "hf_mine"
-
-
-def test_with_api_key_override_clears_the_builtin_anthropic_key_when_no_user_key_given():
-    settings = _settings(llm_provider="anthropic", anthropic_api_key="sk-ant-builtin")
-
-    assert with_api_key_override(settings, None).anthropic_api_key is None
-    assert with_api_key_override(settings, "").anthropic_api_key is None
+    assert upgraded.llm_provider == "anthropic"
+    assert upgraded.anthropic_api_key == "sk-ant-mine"
 
 
-def test_with_api_key_override_clears_the_builtin_hf_token_when_no_user_key_given():
+def test_with_anthropic_upgrade_stays_on_huggingface_when_no_key_given():
     settings = _settings(llm_provider="huggingface", hf_token="hf_builtin")
 
-    assert with_api_key_override(settings, None).hf_token is None
+    assert with_anthropic_upgrade(settings, None).llm_provider == "huggingface"
+    assert with_anthropic_upgrade(settings, "").llm_provider == "huggingface"
+    assert with_anthropic_upgrade(settings, None).hf_token == "hf_builtin"
+
+
+def test_with_anthropic_upgrade_ignores_a_built_in_anthropic_key_when_no_user_key_given():
+    """A deployment's own ANTHROPIC_API_KEY secret must never be used to serve model
+    calls - only a student's own pasted key can switch the session to Claude."""
+    settings = _settings(llm_provider="anthropic", anthropic_api_key="sk-ant-builtin")
+
+    downgraded = with_anthropic_upgrade(settings, None)
+
+    assert downgraded.llm_provider == "huggingface"
+    assert downgraded.anthropic_api_key is None

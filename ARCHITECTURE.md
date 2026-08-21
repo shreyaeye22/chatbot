@@ -6,8 +6,8 @@
 Streamlit UI (src/app.py)
   -> ui.components.build_message_content()  (text, or [text, image] for an attachment)
   -> agents/orchestrator.route_and_answer()
-       -> capabilities/guardrails (input check: off-topic? wants direct answer?
-                                    skipped for off-topic when there's an attachment)
+       -> capabilities/guardrails (input check: greeting? off-topic? wants direct answer?
+                                    off-topic is skipped for a greeting or when there's an attachment)
        -> agents/orchestrator_agent  (LLM call: pick a route - can see an attached image too)
        -> agents/{logistics,concept,escalation}_agent  (LLM call: answer, using toolsets)
             -> toolsets/*  (thin wrappers)
@@ -21,7 +21,10 @@ Streamlit UI renders the reply (simulated stream) and updates session memory
 ```
 
 Each turn does at most two LLM calls: one routing call (structured output) and one specialist
-call. Off-topic messages short-circuit before any LLM call at all.
+call. Off-topic messages short-circuit before any LLM call at all. So do greeting-only messages
+("Hi", "Hello there", ...) — they get a fixed `"Hello! How can I help you today?"` reply
+(`agents.orchestrator.GREETING_REPLY`) instead of the off-topic rejection, and instead of the
+model improvising a reply that might describe its own guardrails/capabilities.
 
 **One exception to the `toolsets -> skills -> data/db.py` line:** `concept_agent`'s
 `search_course_content` tool goes `toolsets/content_tools.py -> capabilities/retrieval/vector_store.py`
@@ -62,13 +65,23 @@ agent tool call, for the same reliability reason.
 `config/settings.py` builds the pydantic-ai `Model` (and its `model_settings`) from an
 `LLM_PROVIDER` setting:
 
-- `anthropic` (default): `AnthropicModel`, requires `ANTHROPIC_API_KEY`. Prompt caching is on
-  (see below).
-- `huggingface`: `HuggingFaceModel` via HF Inference Providers, a free small model
-  (`meta-llama/Llama-3.2-3B-Instruct` by default) — a no-cost fallback for local development
-  if you don't have an Anthropic key. No prompt caching support on this path.
+- `huggingface` (default, and the only provider the app ever starts on): `HuggingFaceModel`
+  via HF Inference Providers, a free small model (`meta-llama/Llama-3.2-3B-Instruct` by
+  default) — runs on the deployment's own built-in `HF_TOKEN` secret, so a student can chat
+  with no key of their own. No prompt caching support on this path.
+- `anthropic`: `AnthropicModel`, opt-in only, and strictly bring-your-own-key. Prompt caching
+  is on (see below).
 
-Switching is a config change in `.streamlit/secrets.toml`, not a code change.
+**The app always boots on Hugging Face, regardless of secrets.** `config.settings.
+with_anthropic_upgrade()` is the only thing that can switch a session to Anthropic, and it
+does so only when a student pastes their own legitimate key into the sidebar's "Upgrade to
+Claude" box (`ui.components.render_provider_sidebar`) — it deliberately ignores whatever
+`LLM_PROVIDER`/`ANTHROPIC_API_KEY` a deployment's `.streamlit/secrets.toml` sets, so the app's
+own Anthropic key (if any is configured there) is never used to serve a chat call and never
+racks up cost on the deployment owner. `app.py`'s `chat_ready` gate reflects this: the chat
+is usable as soon as `HF_TOKEN` is configured (no student action needed), and blocked with an
+admin-facing error if it isn't — pasting a Claude key is how a student, not the deployment,
+opts into paying for better answers.
 
 **Known tradeoff on the Hugging Face path:** small models are less reliable at structured
 tool-calling/routing than Claude. Mitigations in `agents/orchestrator.py`: the routing decision
@@ -123,6 +136,15 @@ why `capabilities.memory.session_memory.add_chat_message()` takes an optional `t
 one-shot `st.status`. `TOOL_SKILLS` in `ui/components.py` maps each tool name to the
 `skills`/`capabilities` module that actually does the work, purely for that display (the
 orchestrator itself doesn't need to know skill names).
+
+**Why the FAQ row is rendered before `render_chat_history()`:** `ui.components.
+render_faq_prompts()` is called first in `app.py`'s `chat_col`, ahead of the conversation
+history, so it stays pinned in a fixed spot at the top of the column. Rendering it after the
+history (as originally written) meant it visually drifted further down the page on every
+turn, since it always sat directly above `st.chat_input` regardless of how much history had
+accumulated above that. The Python-level ordering doesn't matter for the *logic* — `faq_
+selection` is only read later in the script, after `st.chat_input` — only the order of the
+`st.*` calls affects layout.
 
 **Why `app.py` calls `st.rerun()` after each turn:** `st.chat_input`'s `placeholder` argument
 (`ui.components.chat_input_placeholder`, switches to "Ask a follow-up question..." once
@@ -179,9 +201,10 @@ Two separate paths, deliberately not unified, since only one of them needs an LL
   go through `agents/vision_agent.py` (teacher upload: transcribed once into `course_content`)
   or are passed straight through as multimodal content to whichever agent handles that chat
   turn (student attachment) via pydantic-ai's `BinaryContent`. Either way this requires a
-  vision-capable model, so both upload paths in `app.py` check
-  `load_settings().llm_provider == "anthropic"` and hide/disable the image option otherwise —
-  there's no image support on the Hugging Face fallback.
+  vision-capable model, so both upload paths in `app.py` check `vision_enabled`
+  (`effective_settings.llm_provider == "anthropic"`, i.e. only once a student has upgraded to
+  Claude in the sidebar) and hide/disable the image option otherwise — there's no image
+  support on the default Hugging Face model.
 
 `agents/orchestrator.route_and_answer()` accepts `str | Sequence[UserContent]` for this reason:
 a message with an image attached is a list like `["caption text", BinaryContent(...)]` (or just

@@ -4,7 +4,9 @@ study-notes text, for the teacher-upload flow (see data/document_ingest.py's
 
 Vision-only, no tools/deps - a single-purpose transcription step. Only usable
 on a vision-capable provider (Anthropic); app.py gates image upload on
-`config.settings.load_settings().llm_provider == "anthropic"`.
+`vision_enabled` (the effective, post-upgrade settings' `llm_provider ==
+"anthropic"` - true only once a student has pasted their own Claude key into
+the sidebar, see config.settings.with_anthropic_upgrade).
 """
 
 from __future__ import annotations

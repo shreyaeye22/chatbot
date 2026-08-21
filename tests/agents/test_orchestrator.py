@@ -7,6 +7,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from agents.deps import AgentDeps
 from agents.orchestrator import (
     ESCALATION_FALLBACK_REPLY,
+    GREETING_REPLY,
     OFF_TOPIC_REPLY,
     _has_attachment,
     _message_text,
@@ -68,6 +69,21 @@ def test_off_topic_short_circuits_without_calling_the_model(seeded_db_path, vect
     row = conn.execute("SELECT route FROM question_log WHERE student_id = 'alice'").fetchone()
     conn.close()
     assert row["route"] == "off_topic"
+
+
+def test_greeting_short_circuits_without_calling_the_model(seeded_db_path, vector_index_path):
+    deps = AgentDeps(db_path=seeded_db_path, student_id="alice", vector_index_path=vector_index_path)
+    poison_model = FunctionModel(_always_raise)
+
+    answer = route_and_answer("Hi there", deps, model=poison_model)
+
+    assert answer.route == "greeting"
+    assert answer.text == GREETING_REPLY
+
+    conn = get_connection(seeded_db_path)
+    row = conn.execute("SELECT route FROM question_log WHERE student_id = 'alice'").fetchone()
+    conn.close()
+    assert row["route"] == "greeting"
 
 
 def test_routes_to_the_scripted_specialist_and_logs_it(seeded_db_path, vector_index_path):

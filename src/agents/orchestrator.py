@@ -66,6 +66,8 @@ OFF_TOPIC_REPLY = (
     "Try asking about one of those!"
 )
 
+GREETING_REPLY = "Hello! How can I help you today?"
+
 ESCALATION_FALLBACK_REPLY = (
     "I couldn't confidently answer that, so I've flagged it for your teacher to follow up on. "
     "In the meantime, try checking ManageBac/Teams or asking a classmate."
@@ -178,6 +180,17 @@ def route_and_answer(
 
     conn = get_connection(deps.db_path)
     try:
+        if guardrail.is_greeting:
+            logger.info("greeting-only message answered directly")
+            record_question(
+                conn,
+                student_id=deps.student_id,
+                question=log_text,
+                route="greeting",
+                answered=True,
+            )
+            return AgentAnswer(text=GREETING_REPLY, route="greeting")
+
         if guardrail.off_topic:
             logger.info("off-topic question rejected by input guardrail")
             record_question(

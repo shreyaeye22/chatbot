@@ -29,6 +29,7 @@ ROUTE_LABELS = {
     "concept": "the concept tutor",
     "escalation": "your teacher (escalated)",
     "off_topic": "nowhere (off-topic)",
+    "greeting": "nowhere (greeting)",
 }
 
 
@@ -159,9 +160,10 @@ def chat_input_placeholder(has_history: bool) -> str:
 def render_faq_prompts(prompts: list[str], *, disabled: bool = False) -> str | None:
     """Row of clickable frequently-asked-question buttons next to the chat input.
 
-    `disabled` blocks the buttons (e.g. app.py sets this when the student
-    hasn't supplied an API key yet) since clicking one sends a message
-    straight to the model, same as typing it. Returns the clicked prompt's
+    `disabled` blocks the buttons (e.g. app.py sets this when the assistant
+    isn't ready to answer, such as a missing built-in Hugging Face token)
+    since clicking one sends a message straight to the model, same as typing
+    it. Returns the clicked prompt's
     text so the caller can feed it through the same send path as a typed
     message, or None if nothing was clicked (including while disabled).
     """
@@ -217,30 +219,105 @@ def render_course_library(files: list[dict]) -> int | None:
     return files[selected_rows[0]]["id"]
 
 
-def render_api_key_sidebar(provider: str) -> str | None:
-    """Sidebar box where the student enters their own provider API key.
+def render_provider_sidebar() -> str | None:
+    """Sidebar box for optionally upgrading from the free Hugging Face model to Claude.
 
-    Required, not optional: the app never falls back to its own configured
-    secret at runtime (config.settings.with_api_key_override always replaces,
-    never no-ops), so callers must gate every LLM-calling action - the chat
-    input, FAQ shortcuts, and the vision-transcription upload path in app.py -
-    on this returning a non-empty string. Bound directly to
-    st.session_state["user_api_key"] via `key=` (Streamlit's normal
+    The assistant runs out of the box on the app's own configured Hugging
+    Face model - no key needed from the student. Pasting a legitimate
+    Anthropic API key here switches this session to Claude for higher-quality
+    answers; the app never uses a built-in Anthropic secret to serve model
+    calls (config.settings.with_anthropic_upgrade), so this must be the
+    student's own key, and it's used for this browser tab's session only -
+    never stored or logged. Bound directly to
+    st.session_state["user_anthropic_key"] via `key=` (Streamlit's normal
     widget-state pattern, e.g. upload_subject in app.py), so the value is also
-    readable straight from session_state on later reruns.
+    readable straight from session_state on later reruns. Returns the entered
+    key, or None if the box is empty (i.e. stay on Hugging Face).
     """
-    st.header("Your API key")
-    api_key = st.text_input(
-        f"{provider.title()} API key",
-        type="password",
-        key="user_api_key",
-        help=f"Required to chat. Runs on your own {provider.title()} key for "
-        "this session only - kept in this browser tab, never stored, "
-        "logged, or sent anywhere but the provider's API.",
+    st.header("Model")
+    st.caption("Running on the free Hugging Face model.")
+    with st.expander("Upgrade to Claude (optional)"):
+        anthropic_key = st.text_input(
+            "Anthropic API key",
+            type="password",
+            key="user_anthropic_key",
+            help="Paste your own legitimate Claude API key to switch this "
+            "session to Claude for higher-quality answers. Kept in this "
+            "browser tab only - never stored, logged, or sent anywhere but "
+            "Anthropic's API.",
+        )
+    return anthropic_key or None
+
+
+def render_sign_in_screen() -> tuple[str, str] | None:
+    """Sign-in screen shown before any chat content renders: pick a role, type a
+    display name, no password. Part of the lightweight, session-based role gate
+    (see capabilities.auth.session_auth) - not real authentication.
+
+    Returns (name, lowercased_role) once "Sign In" is clicked with a non-empty
+    name, else None (including on first render and while validation fails).
+    """
+    st.title("🎓 MYP Academic Assistant")
+    st.subheader("Sign in to continue")
+    role_label = st.radio("I am a...", ["Student", "Teacher"], horizontal=True, key="sign_in_role")
+    name = st.text_input("Display name", placeholder="e.g. Alex", key="sign_in_name")
+    if st.button("Sign In", type="primary", key="sign_in_button"):
+        if not name.strip():
+            st.error("Please enter a display name.")
+            return None
+        return name.strip(), role_label.lower()
+    return None
+
+
+def render_profile_badge(user_name: str, user_role: str | None) -> bool:
+    """Top-right avatar (first letter of the signed-in user's name) with a Log
+    Out control, shown on every screen once signed in.
+
+    A true CSS-only `:hover` dropdown can't call back into Streamlit's Python
+    session (`:hover` is DOM-only), and hand-positioning a real Streamlit
+    button under a `position: fixed` overlay is fragile here: Streamlit
+    rebuilds the DOM on every rerun, so an overlaid widget can end up
+    misaligned or unclickable. st.popover is Streamlit's supported primitive
+    for "click a small badge, reveal a mini panel with real widgets" - it's
+    used here instead, with CSS only for the badge's own fixed top-right
+    position and circular styling (not for revealing the button).
+
+    Returns True the run "Log Out" is clicked.
+    """
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stPopover"] {
+            position: fixed;
+            /* Streamlit's own header (Deploy/menu icons) is a `position: absolute`
+            bar with z-index 999990 covering the very top of the page - sitting
+            below it (rather than fighting it for the same strip) avoids both an
+            overlap with those controls and a z-index war. */
+            top: 4.5rem;
+            right: 1.2rem;
+            z-index: 999991;
+            /* Without this, the element keeps its normal-flow full width and its
+            button ends up left-aligned inside that box - i.e. at the LEFT edge
+            of the screen - instead of at the `right` offset above. */
+            width: fit-content;
+        }
+        div[data-testid="stPopover"] button {
+            border-radius: 50%;
+            width: 2.75rem;
+            height: 2.75rem;
+            padding: 0;
+            font-weight: 600;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
-    if not api_key:
-        st.warning(f"🔑 Enter your {provider.title()} API key above to start chatting.")
-    return api_key or None
+    initial = (user_name or "?").strip()[:1].upper() or "?"
+    with st.popover(initial):
+        st.write(f"**{user_name}**")
+        if user_role:
+            st.caption(user_role.capitalize())
+        return st.button("Log Out", key="logout_button", use_container_width=True)
 
 
 def render_focused_file_badge(focused_file: dict | None) -> bool:

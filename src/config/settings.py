@@ -69,7 +69,7 @@ class Settings:
 
 def load_settings() -> Settings:
     return Settings(
-        llm_provider=(_get_secret("LLM_PROVIDER", "anthropic") or "anthropic").lower(),
+        llm_provider=(_get_secret("LLM_PROVIDER", "huggingface") or "huggingface").lower(),
         hf_token=_get_secret("HF_TOKEN"),
         hf_model_name=_get_secret("HF_MODEL_NAME", DEFAULT_HF_MODEL) or DEFAULT_HF_MODEL,
         anthropic_api_key=_get_secret("ANTHROPIC_API_KEY"),
@@ -79,22 +79,22 @@ def load_settings() -> Settings:
     )
 
 
-def with_api_key_override(settings: Settings, api_key: str | None) -> Settings:
-    """Return `settings` with the active provider's key replaced by `api_key`.
+def with_anthropic_upgrade(settings: Settings, anthropic_api_key: str | None) -> Settings:
+    """Pin `settings` to Hugging Face, unless the student supplies their own Anthropic key.
 
-    Always replaces - even with None/empty - rather than falling back to the
-    app's configured secret when `api_key` is falsy. Students must paste
-    their own key into the sidebar (ui.components.render_api_key_sidebar) to
-    use the chatbot; the app's built-in ANTHROPIC_API_KEY/HF_TOKEN secrets are
-    never used to serve model calls. Callers (app.py) must gate any
-    LLM-calling action on the user having supplied a key, since the resulting
-    Settings can carry a None key.
+    The app always starts on its own configured Hugging Face model - no key
+    needed from the student, using the built-in HF_TOKEN secret - regardless
+    of what `LLM_PROVIDER`/`ANTHROPIC_API_KEY` a deployment's secrets happen to
+    set; those are ignored here on purpose. Anthropic is opt-in only, since
+    unlike the free HF tier it costs money per call: the app never uses a
+    built-in ANTHROPIC_API_KEY secret to serve model calls, so Claude is only
+    ever used once a student pastes their own real key into the sidebar this
+    session (ui.components.render_provider_sidebar). A falsy
+    `anthropic_api_key` keeps/forces `settings` onto Hugging Face.
     """
-    if settings.llm_provider == "anthropic":
-        return replace(settings, anthropic_api_key=api_key or None)
-    if settings.llm_provider == "huggingface":
-        return replace(settings, hf_token=api_key or None)
-    return settings
+    if not anthropic_api_key:
+        return replace(settings, llm_provider="huggingface", anthropic_api_key=None)
+    return replace(settings, llm_provider="anthropic", anthropic_api_key=anthropic_api_key)
 
 
 def get_model(settings: Settings | None = None):
