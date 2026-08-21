@@ -19,6 +19,7 @@ call site.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import BinaryIO
 
@@ -100,16 +101,24 @@ def store_course_content(
     content: str,
     source_name: str,
     collection: Collection,
+    uploader_role: str = "Teacher",
+    uploader_name: str = "",
 ) -> int:
     """Insert already-extracted text as a course_content row, and index it into the
     vector search store so it's immediately searchable. Returns the new row's id.
+
+    `uploader_role`/`uploader_name` record who added it (e.g. "Teacher"/"Ms. Smith")
+    for the course library panel; `created_at` is stamped as of this call so the
+    panel can order newest-first.
     """
     if not content:
         raise ValueError(f"No content to store for {source_name!r}")
 
+    created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     cursor = conn.execute(
-        "INSERT INTO course_content (subject, topic, content, source) VALUES (?, ?, ?, ?)",
-        (subject, topic, content, source_name),
+        "INSERT INTO course_content (subject, topic, content, source, owner, uploaded_by, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (subject, topic, content, source_name, uploader_role, uploader_name, created_at),
     )
     conn.commit()
     row_id = cursor.lastrowid
@@ -128,6 +137,8 @@ def ingest_document(
     topic: str,
     source_name: str,
     collection: Collection,
+    uploader_role: str = "Teacher",
+    uploader_name: str = "",
 ) -> int:
     """Parse an uploaded document (.docx/.pdf/.pptx/.txt/.md) and store it as a
     course_content row. Returns the new row's id.
@@ -140,18 +151,23 @@ def ingest_document(
         content=text,
         source_name=source_name,
         collection=collection,
+        uploader_role=uploader_role,
+        uploader_name=uploader_name,
     )
 
 
 def list_course_content(conn: sqlite3.Connection) -> list[dict]:
-    """id, filename, subject, owner for every row - powers the library panel.
+    """id, filename, subject, owner, uploaded_by, created_at for every row - powers
+    the library panel, newest upload first.
 
     `source` is aliased to `filename` (the UI-facing name for "uploaded file
-    name, or 'seed'"). No `content` body - the panel only lists files.
+    name, or 'seed'"). No `content` body - the panel only lists files. Ties on
+    `created_at` (e.g. seed rows, which all share `db.SEED_UPLOAD_TIMESTAMP`)
+    break on `id` descending, so ordering is always deterministic.
     """
     rows = conn.execute(
-        "SELECT id, source AS filename, subject, owner "
-        "FROM course_content ORDER BY subject, source"
+        "SELECT id, source AS filename, subject, owner, uploaded_by, created_at "
+        "FROM course_content ORDER BY created_at DESC, id DESC"
     ).fetchall()
     return [dict(row) for row in rows]
 

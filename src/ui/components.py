@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from typing import Any, Iterator
 
 import pandas as pd
 import streamlit as st
 from pydantic_ai import BinaryContent, UserContent
 
+from data.db import SEED_UPLOAD_TIMESTAMP
 from data.document_ingest import extract_text
 
 DOCUMENT_EXTENSIONS = ["docx", "pdf", "pptx", "txt", "md"]
 IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"]
+
+# Role icon shown in the course library's "Uploaded By" column - falls back to a
+# plain document icon for legacy/unrecognized owner values.
+ROLE_ICONS = {"Teacher": "🧑‍🏫", "Student": "🎓"}
 
 # Maps an agent-callable tool (toolsets/*) to the underlying skill module that does its
 # real work (skills/* or capabilities/*), purely for the status-window trace below - the
@@ -181,9 +187,33 @@ def render_faq_prompts(prompts: list[str], *, disabled: bool = False) -> str | N
     return clicked
 
 
+def format_uploader(owner: str, uploaded_by: str) -> str:
+    """Course library "Uploaded By" cell: a role icon plus "<Role>" or, when a
+    name was recorded (a real upload rather than seed/legacy data), "<Role> · <name>".
+    """
+    icon = ROLE_ICONS.get(owner, "📄")
+    return f"{icon} {owner} · {uploaded_by}" if uploaded_by else f"{icon} {owner}"
+
+
+def format_upload_timestamp(created_at: str) -> str:
+    """Course library "Uploaded" cell: a friendly rendering of the stored UTC
+    `created_at` (data.document_ingest.store_course_content's "%Y-%m-%dT%H:%M:%SZ"
+    format), or "—" for seed/legacy rows with no real upload timestamp
+    (data.db.SEED_UPLOAD_TIMESTAMP, or an empty value).
+    """
+    if not created_at or created_at == SEED_UPLOAD_TIMESTAMP:
+        return "—"
+    try:
+        parsed = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return "—"
+    return parsed.strftime("%b %d, %Y · %I:%M %p")
+
+
 def render_course_library(files: list[dict]) -> int | None:
-    """Right-side panel: a File/Subject/Owner table of every course_content row,
-    click-to-select. `files` is data.document_ingest.list_course_content's return
+    """Right-side panel: a File/Subject/Uploaded By/Uploaded table of every
+    course_content row (newest upload first - data.document_ingest.list_course_content
+    orders it that way already), click-to-select. `files` is that function's return
     value. Returns the clicked row's course_content id this run, or None if
     nothing was clicked (caller owns persisting the choice into session_state -
     this function only reports the event, same division of responsibility as
@@ -200,16 +230,26 @@ def render_course_library(files: list[dict]) -> int | None:
         st.caption("No course files yet.")
         return None
 
-    table = pd.DataFrame(files)[["filename", "subject", "owner"]].rename(
-        columns={"filename": "File", "subject": "Subject", "owner": "Owner"}
+    table = pd.DataFrame(files)
+    table["Uploaded By"] = [format_uploader(f["owner"], f["uploaded_by"]) for f in files]
+    table["Uploaded"] = [format_upload_timestamp(f["created_at"]) for f in files]
+    table = table[["filename", "subject", "Uploaded By", "Uploaded"]].rename(
+        columns={"filename": "File", "subject": "Subject"}
     )
     event = st.dataframe(
         table,
         hide_index=True,
         width="stretch",
+        height=360,
         on_select="rerun",
         selection_mode="single-row",
         key="course_library_table",
+        column_config={
+            "File": st.column_config.TextColumn("File", width="medium"),
+            "Subject": st.column_config.TextColumn("Subject", width="large"),
+            "Uploaded By": st.column_config.TextColumn("Uploaded By", width="medium"),
+            "Uploaded": st.column_config.TextColumn("Uploaded", width="medium"),
+        },
     )
     selected_rows = event.selection.rows if event is not None else []
     if not selected_rows:

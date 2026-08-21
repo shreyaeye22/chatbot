@@ -119,13 +119,38 @@ def test_store_course_content_inserts_a_row(db_conn, vector_collection):
     )
 
     row = db_conn.execute(
-        "SELECT subject, topic, content, source FROM course_content WHERE id = ?", (row_id,)
+        "SELECT subject, topic, content, source, owner, uploaded_by, created_at "
+        "FROM course_content WHERE id = ?",
+        (row_id,),
     ).fetchone()
 
     assert row["subject"] == "math"
     assert row["topic"] == "algebra"
     assert row["content"] == "some notes"
     assert row["source"] == "upload.txt"
+    assert row["owner"] == "Teacher"  # default when no uploader_role is given
+    assert row["uploaded_by"] == ""  # default when no uploader_name is given
+    assert row["created_at"]  # stamped with a real upload timestamp
+
+
+def test_store_course_content_records_the_given_uploader(db_conn, vector_collection):
+    row_id = store_course_content(
+        db_conn,
+        subject="math",
+        topic="algebra",
+        content="some notes",
+        source_name="upload.txt",
+        collection=vector_collection,
+        uploader_role="Student",
+        uploader_name="Sam",
+    )
+
+    row = db_conn.execute(
+        "SELECT owner, uploaded_by FROM course_content WHERE id = ?", (row_id,)
+    ).fetchone()
+
+    assert row["owner"] == "Student"
+    assert row["uploaded_by"] == "Sam"
 
 
 def test_store_course_content_also_indexes_the_row_for_search(db_conn, vector_collection):
@@ -173,7 +198,9 @@ def test_ingest_document_end_to_end(tmp_path, db_conn, vector_collection):
     assert "mitochondria" in row["content"]
 
 
-def test_list_course_content_returns_filename_subject_owner(db_conn, vector_collection):
+def test_list_course_content_returns_filename_subject_owner_uploader_and_timestamp(
+    db_conn, vector_collection
+):
     store_course_content(
         db_conn,
         subject="math",
@@ -181,19 +208,30 @@ def test_list_course_content_returns_filename_subject_owner(db_conn, vector_coll
         content="notes",
         source_name="algebra.txt",
         collection=vector_collection,
+        uploader_role="Student",
+        uploader_name="Sam",
     )
 
     files = list_course_content(db_conn)
 
     assert len(files) == 1
-    assert set(files[0].keys()) == {"id", "filename", "subject", "owner"}
+    assert set(files[0].keys()) == {
+        "id",
+        "filename",
+        "subject",
+        "owner",
+        "uploaded_by",
+        "created_at",
+    }
     assert files[0]["filename"] == "algebra.txt"
     assert files[0]["subject"] == "math"
-    assert files[0]["owner"] == "Teacher"
+    assert files[0]["owner"] == "Student"
+    assert files[0]["uploaded_by"] == "Sam"
+    assert files[0]["created_at"]
 
 
-def test_list_course_content_orders_by_subject_then_filename(db_conn, vector_collection):
-    store_course_content(
+def test_list_course_content_orders_newest_upload_first(db_conn, vector_collection):
+    first_id = store_course_content(
         db_conn,
         subject="physics",
         topic="motion",
@@ -201,7 +239,7 @@ def test_list_course_content_orders_by_subject_then_filename(db_conn, vector_col
         source_name="b.txt",
         collection=vector_collection,
     )
-    store_course_content(
+    second_id = store_course_content(
         db_conn,
         subject="biology",
         topic="cells",
@@ -209,7 +247,7 @@ def test_list_course_content_orders_by_subject_then_filename(db_conn, vector_col
         source_name="a.txt",
         collection=vector_collection,
     )
-    store_course_content(
+    third_id = store_course_content(
         db_conn,
         subject="biology",
         topic="genetics",
@@ -220,11 +258,9 @@ def test_list_course_content_orders_by_subject_then_filename(db_conn, vector_col
 
     files = list_course_content(db_conn)
 
-    assert [(f["subject"], f["filename"]) for f in files] == [
-        ("biology", "a.txt"),
-        ("biology", "c.txt"),
-        ("physics", "b.txt"),
-    ]
+    # Most-recently-inserted first; ties on created_at (plausible given these run
+    # back-to-back) break on id descending, so this stays deterministic either way.
+    assert [f["id"] for f in files] == [third_id, second_id, first_id]
 
 
 def test_list_course_content_empty_db_returns_empty_list(db_conn):

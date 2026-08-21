@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS course_content (
     topic TEXT NOT NULL,
     content TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'seed',
-    owner TEXT NOT NULL DEFAULT 'Teacher'
+    owner TEXT NOT NULL DEFAULT 'Teacher',
+    uploaded_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS question_log (
@@ -48,6 +50,11 @@ CREATE TABLE IF NOT EXISTS question_log (
     created_at TEXT NOT NULL
 );
 """
+
+# Sentinel course_content.created_at for rows that predate upload-timestamp tracking
+# (seed data, and pre-existing rows backfilled by _ensure_upload_metadata_columns) - old
+# enough that real uploads always sort ahead of it under "newest first" ordering.
+SEED_UPLOAD_TIMESTAMP = "1970-01-01T00:00:00Z"
 
 
 def get_connection(db_path: str | Path) -> sqlite3.Connection:
@@ -69,12 +76,30 @@ def _ensure_owner_column(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE course_content ADD COLUMN owner TEXT NOT NULL DEFAULT 'Teacher'")
 
 
+def _ensure_upload_metadata_columns(conn: sqlite3.Connection) -> None:
+    """Backfill course_content.uploaded_by/created_at for DBs created before these
+    columns existed. Rows with no recorded created_at (freshly added column, or an
+    empty value some other way) predate upload tracking, so they're backfilled to
+    SEED_UPLOAD_TIMESTAMP rather than left unsortable. No-ops (past the ALTERs) once
+    already backfilled, so it's safe to call on every init_db.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(course_content)")}
+    if "uploaded_by" not in columns:
+        conn.execute("ALTER TABLE course_content ADD COLUMN uploaded_by TEXT NOT NULL DEFAULT ''")
+    if "created_at" not in columns:
+        conn.execute("ALTER TABLE course_content ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
+    conn.execute(
+        "UPDATE course_content SET created_at = ? WHERE created_at = ''", (SEED_UPLOAD_TIMESTAMP,)
+    )
+
+
 def init_db(db_path: str | Path) -> None:
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = get_connection(db_path)
     try:
         conn.executescript(SCHEMA_SQL)
         _ensure_owner_column(conn)
+        _ensure_upload_metadata_columns(conn)
         conn.commit()
     finally:
         conn.close()
@@ -111,9 +136,9 @@ def seed_db(db_path: str | Path, seed_dir: str | Path) -> None:
         if _table_is_empty(conn, "course_content"):
             rows = json.loads((seed_dir / "course_content.json").read_text(encoding="utf-8"))
             conn.executemany(
-                "INSERT INTO course_content (subject, topic, content, source) "
-                "VALUES (:subject, :topic, :content, :source)",
-                rows,
+                "INSERT INTO course_content (subject, topic, content, source, created_at) "
+                "VALUES (:subject, :topic, :content, :source, :created_at)",
+                [{**row, "created_at": SEED_UPLOAD_TIMESTAMP} for row in rows],
             )
         conn.commit()
     finally:

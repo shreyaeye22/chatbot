@@ -5,11 +5,14 @@ from types import SimpleNamespace
 
 from pydantic_ai import BinaryContent
 
+from data.db import SEED_UPLOAD_TIMESTAMP
 from ui.components import (
     DOCUMENT_EXTENSIONS,
     IMAGE_EXTENSIONS,
     build_message_content,
     chat_input_placeholder,
+    format_upload_timestamp,
+    format_uploader,
     parse_chat_input,
     render_tool_trace,
     upload_file_types,
@@ -160,6 +163,34 @@ def test_render_tool_trace_notes_when_no_tools_were_called():
     render_tool_trace(status, "escalation", [])
 
     assert any("No tools called" in line for line in status.lines)
+
+
+def test_format_uploader_includes_name_when_present():
+    assert format_uploader("Teacher", "Ms. Smith") == "🧑‍🏫 Teacher · Ms. Smith"
+
+
+def test_format_uploader_falls_back_to_role_only_when_no_name_recorded():
+    assert format_uploader("Teacher", "") == "🧑‍🏫 Teacher"
+
+
+def test_format_uploader_uses_the_student_icon_for_a_student_upload():
+    assert format_uploader("Student", "Sam") == "🎓 Student · Sam"
+
+
+def test_format_uploader_falls_back_to_a_generic_icon_for_an_unrecognized_role():
+    assert format_uploader("Admin", "Jo") == "📄 Admin · Jo"
+
+
+def test_format_upload_timestamp_formats_a_stored_iso_timestamp():
+    assert format_upload_timestamp("2026-08-21T15:04:05Z") == "Aug 21, 2026 · 03:04 PM"
+
+
+def test_format_upload_timestamp_shows_a_placeholder_for_the_seed_sentinel():
+    assert format_upload_timestamp(SEED_UPLOAD_TIMESTAMP) == "—"
+
+
+def test_format_upload_timestamp_shows_a_placeholder_for_an_empty_value():
+    assert format_upload_timestamp("") == "—"
 
 
 def test_chat_input_placeholder_switches_to_a_follow_up_after_the_first_turn():

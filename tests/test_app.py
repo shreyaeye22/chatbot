@@ -270,7 +270,7 @@ def test_course_library_panel_renders_in_main_body_with_expected_columns(
 
     assert len(at.main.dataframe) == 1
     assert len(at.sidebar.dataframe) == 0
-    assert list(at.main.dataframe[0].value.columns) == ["File", "Subject", "Owner"]
+    assert list(at.main.dataframe[0].value.columns) == ["File", "Subject", "Uploaded By", "Uploaded"]
 
 
 def test_selecting_a_library_file_persists_across_a_rerun(tmp_path: Path, monkeypatch):

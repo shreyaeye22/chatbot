@@ -165,10 +165,13 @@ saved as permanent course content — they only apply to that one question.
 ## Course files library
 
 To the right of the chat, a panel lists every piece of course content (teacher uploads and
-seed data alike) as a table of File / Subject / Owner — "Owner" is currently always "Teacher"
-since course content can only be added through the Teacher tools upload panel above, regardless
-of which name signed in to upload it (there's no per-user content ownership, just the one
-role-gated upload path). Clicking a row scopes the conversation to
+seed data alike) as a table of File / Subject / Uploaded By / Uploaded, newest upload first.
+"Uploaded By" shows the role and display name recorded at upload time (e.g. "🧑‍🏫 Teacher ·
+Ms. Smith") — currently always a teacher, since course content can only be added through the
+Teacher tools upload panel above, but whichever name is signed in when they upload is what's
+recorded. "Uploaded" shows when that happened; seed data and any pre-existing rows from before
+this tracking existed have no real upload event to report, so they show just the role (no name)
+and "—" for the timestamp. Clicking a row scopes the conversation to
 just that file's content, shown as an "Attached: ..." badge above the chat input, and stays
 attached across follow-up questions until you click Clear. With nothing selected (the default),
 questions still search across all course content as usual (semantic search, see

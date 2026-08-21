@@ -63,7 +63,7 @@ from ui.components import (
     upload_file_types,
 )
 
-st.set_page_config(page_title="MYP Academic Assistant", page_icon="🎓")
+st.set_page_config(page_title="MYP Academic Assistant", page_icon="🎓", layout="wide")
 
 # --- Sign-in gate -------------------------------------------------------------
 # Lightweight, session-based role gate for UX/testing purposes only - NOT secure
@@ -139,6 +139,8 @@ with st.sidebar:
             ):
                 conn = get_connection(deps.db_path)
                 collection = vector_store.get_collection(deps.vector_index_path)
+                uploader_role = get_user_role(st.session_state).capitalize()
+                uploader_name = get_user_name(st.session_state)
                 try:
                     if is_image_upload:
                         vision_result = vision_agent.run_sync(
@@ -153,6 +155,8 @@ with st.sidebar:
                             content=vision_result.output,
                             source_name=uploaded.name,
                             collection=collection,
+                            uploader_role=uploader_role,
+                            uploader_name=uploader_name,
                         )
                     else:
                         ingest_document(
@@ -162,6 +166,8 @@ with st.sidebar:
                             topic=topic,
                             source_name=uploaded.name,
                             collection=collection,
+                            uploader_role=uploader_role,
+                            uploader_name=uploader_name,
                         )
                     st.success(f"Added '{uploaded.name}' to {subject} notes.")
                 except ValueError as exc:
@@ -173,7 +179,7 @@ st.title("🎓 MYP Academic Assistant")
 st.caption("Ask about homework deadlines, assessment dates, instructions, or a concept from class.")
 st.caption("You can attach a photo or file of a worksheet to your question, too.")
 
-chat_col, library_col = st.columns([3, 1], gap="large")
+chat_col, library_col = st.columns([1, 1], gap="large")
 
 with library_col:
     conn = get_connection(deps.db_path)

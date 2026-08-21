@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from config.settings import SUPPORTED_SUBJECTS
-from data.db import ensure_db, get_connection, init_db
+from data.db import SEED_UPLOAD_TIMESTAMP, ensure_db, get_connection, init_db
 
 
 def test_init_db_creates_expected_tables(tmp_path):
@@ -71,6 +71,22 @@ def test_seeded_course_content_rows_default_to_teacher_owner(seeded_conn: sqlite
     assert owners == {"Teacher"}
 
 
+def test_seeded_course_content_rows_have_the_seed_upload_timestamp(seeded_conn: sqlite3.Connection):
+    timestamps = {
+        row["created_at"] for row in seeded_conn.execute("SELECT DISTINCT created_at FROM course_content")
+    }
+
+    assert timestamps == {SEED_UPLOAD_TIMESTAMP}
+
+
+def test_seeded_course_content_rows_have_no_uploaded_by(seeded_conn: sqlite3.Connection):
+    uploaded_by = {
+        row["uploaded_by"] for row in seeded_conn.execute("SELECT DISTINCT uploaded_by FROM course_content")
+    }
+
+    assert uploaded_by == {""}
+
+
 def test_init_db_migrates_existing_course_content_table_to_add_owner_column(tmp_path):
     db_path = tmp_path / "legacy.db"
     conn = get_connection(db_path)
@@ -110,3 +126,48 @@ def test_init_db_owner_migration_is_idempotent(tmp_path):
     finally:
         conn.close()
     assert "owner" in columns
+
+
+def test_init_db_migrates_existing_table_to_add_upload_metadata_columns(tmp_path):
+    db_path = tmp_path / "legacy.db"
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE course_content ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL, topic TEXT NOT NULL, "
+            "content TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'seed', "
+            "owner TEXT NOT NULL DEFAULT 'Teacher')"
+        )
+        conn.execute(
+            "INSERT INTO course_content (subject, topic, content, source) VALUES (?, ?, ?, ?)",
+            ("math", "algebra", "notes", "legacy.txt"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    init_db(db_path)  # should not raise, and should backfill both new columns
+
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT uploaded_by, created_at FROM course_content WHERE source = 'legacy.txt'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row["uploaded_by"] == ""
+    assert row["created_at"] == SEED_UPLOAD_TIMESTAMP
+
+
+def test_init_db_upload_metadata_migration_is_idempotent(tmp_path):
+    db_path = tmp_path / "app.db"
+
+    init_db(db_path)
+    init_db(db_path)  # second call must not raise (e.g. duplicate ALTER TABLE)
+
+    conn = get_connection(db_path)
+    try:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(course_content)")}
+    finally:
+        conn.close()
+    assert {"uploaded_by", "created_at"} <= columns
